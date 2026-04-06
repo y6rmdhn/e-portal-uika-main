@@ -15,12 +15,13 @@ class CreateUsersTable extends Migration
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id();
+            $table->uuid('public_id')->unique();
             $table->string('name');
             $table->string('email')->unique();
             $table->string('nip')->nullable()->unique();
             $table->string('nidn')->nullable()->unique();
             $table->string('npm')->nullable()->unique();
-            $table->foreignId('role_id')->constrained('roles')->onDelete('cascade'); 
+            $table->foreignId('role_id')->constrained('roles')->onDelete('cascade');
             $table->boolean('is_active')->default(false);
             $table->string('password');
             $table->bigInteger('phone')->nullable();
@@ -29,6 +30,7 @@ class CreateUsersTable extends Migration
             $table->text('image')->nullable();
             $table->rememberToken();
             $table->timestamps();
+            $table->timestamp('email_verified_at')->nullable();
             $table->timestamp('deleted_at')->nullable();
         });
     }
