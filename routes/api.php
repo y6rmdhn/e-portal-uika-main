@@ -1,8 +1,11 @@
 <?php
 
+use App\Http\Controllers\Api\SsoController;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Cache;
 
 /*
 |--------------------------------------------------------------------------
@@ -51,7 +54,12 @@ Route::group(['middleware' => ['jwt.verify']], function () {
     Route::get('/app_modul', 'Api\AppModuleController@index');
     Route::get('/tx_user_modul_permission', 'Api\TxUserModulPermissionController@index');
     Route::get('/call_user', 'Api\AuthController@call_user');
+
+    Route::post('/sso/generate-ticket', [SsoController::class, 'generateTicket']);
 });
+
+// Endpoint untuk Express
+Route::post('/sso/verify-ticket', [SsoController::class, 'verifyTicket']);
 
 // Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 //     return $request->user();
