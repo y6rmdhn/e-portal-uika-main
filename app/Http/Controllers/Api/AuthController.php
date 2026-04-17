@@ -139,20 +139,26 @@ class AuthController extends Controller
 
         $user = FacadesJWTAuth::user();
 
+        $isProduction = env('APP_ENV') === 'production';
+        
+        $cookieDomain = $isProduction ? '.uika.ac.id' : null;
+
         $cookie = cookie(
-            'token',
+            'uika_sso_token',
             $token,
             1440,
-            null,
-            null,
+            '/',
+            $cookieDomain,       
+            $isProduction,
+            true,
             false,
-            true
+            'Lax'
         );
 
         return ResponseBuilder::success(200, "Login successful", [
             'user' => $user,
             'token_portal' => $token
-        ])->cookie($cookie);
+        ])->withCookie($cookie);
     }
 
     public function authTias(Request $request)
@@ -336,13 +342,13 @@ class AuthController extends Controller
         ]);
 
         if ($validator->fails()) {
-        return response()->json([
-            'status' => 400,
-            'success' => false,
-            'message' => $validator->errors()->first(),
-            'data' => []
-        ], 400);
-}
+            return response()->json([
+                'status' => 400,
+                'success' => false,
+                'message' => $validator->errors()->first(),
+                'data' => []
+            ], 400);
+        }
 
         try {
             $status = Password::broker()->reset(
@@ -381,12 +387,14 @@ class AuthController extends Controller
         }
     }
 
-    public function redirectToGoogle(){
+    public function redirectToGoogle()
+    {
         return Socialite::driver('google')->stateless()->redirect();
     }
 
-    public function handleGoogleCallback(){
-        try{
+    public function handleGoogleCallback()
+    {
+        try {
 
             // Ambil data user dari Google
             $googleUser = Socialite::driver('google')->stateless()->user();
@@ -395,14 +403,14 @@ class AuthController extends Controller
             $user = User::where('email', $googleUser->email)->first();
 
             if (!$user) {
-            $pendingData = base64_encode(json_encode([
-                'name' => $googleUser->name,
-                'email' => $googleUser->email,
-            ]));
-            
-            // Redirect ke halaman register React
-            return redirect('http://localhost:5173/register?social_data=' . $pendingData);
-        }
+                $pendingData = base64_encode(json_encode([
+                    'name' => $googleUser->name,
+                    'email' => $googleUser->email,
+                ]));
+
+                // Redirect ke halaman register React
+                return redirect('http://localhost:5173/register?social_data=' . $pendingData);
+            }
 
             // Buat JWT Token
             $token = FacadesJWTAuth::fromUser($user);
@@ -420,7 +428,7 @@ class AuthController extends Controller
 
             // Redirect BALIK ke React (bawa data user di URL)
             return redirect('http://localhost:5173/auth/google/success?data=' . $userData)->withCookie($cookie);
-        }catch (\Exception $e) {
+        } catch (\Exception $e) {
             // Kalau batal/error, kembalikan ke halaman login React bawa pesan error
             return redirect('http://localhost:5173/login?error=GoogleLoginFailed');
         }

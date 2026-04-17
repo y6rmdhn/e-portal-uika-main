@@ -35,4 +35,24 @@ class SsoController extends Controller
 
         return response()->json($user);
     }
+
+    public function checkIdentifier(Request $request)
+    {
+        // validasi input
+        $request->validate([
+            'role_id' => 'required|string',
+            'identifier' => 'required|string',
+        ]);
+
+        $roleId = $request->role_id;
+        $identifier = $request->identifier;
+
+        try {
+            if ($roleId == "1") {
+                // $response = 
+            }
+        } catch (\Throwable $th) {
+            //throw $th;
+        }
+    }
 }

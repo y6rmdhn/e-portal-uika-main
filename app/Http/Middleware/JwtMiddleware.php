@@ -21,6 +21,10 @@ class JwtMiddleware extends BaseMiddleware
      */
     public function handle($request, Closure $next)
     {
+        if (!$request->bearerToken() && $request->hasCookie('uika_sso_token')) {
+            $request->headers->set('Authorization', 'Bearer ' . $request->cookie('uika_sso_token'));
+        }
+
         try {
             $user = FacadesJWTAuth::parseToken()->authenticate();
         } catch (Exception $e) {
