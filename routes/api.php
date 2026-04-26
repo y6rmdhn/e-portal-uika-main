@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\SsoController;
+use App\Http\Controllers\UserController;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -55,11 +56,20 @@ Route::group(['middleware' => ['jwt.verify']], function () {
     Route::get('/tx_user_modul_permission', 'Api\TxUserModulPermissionController@index');
     Route::get('/call_user', 'Api\AuthController@call_user');
 
-    Route::post('/sso/generate-ticket', [SsoController::class, 'generateTicket']);
+    // Route::post('/sso/generate-ticket', [SsoController::class, 'generateTicket']);
+
+    Route::middleware(['role:admin'])->prefix('admins')->name('admins.')->group(function () {
+        Route::get('/',                     [UserController::class, 'index'])->name('index');
+        Route::post('/',                    [UserAdminController::class, 'store'])->name('store');
+        Route::get('/{admin}',              [UserAdminController::class, 'show'])->name('show');
+        Route::put('/{admin}',              [UserAdminController::class, 'update'])->name('update');
+        Route::delete('/{admin}',           [UserAdminController::class, 'destroy'])->name('destroy');
+        Route::patch('/{admin}/toggle-active', [UserAdminController::class, 'toggleActive'])->name('toggle-active');
+    });
 });
 
 // Endpoint untuk Express
-Route::post('/sso/verify-ticket', [SsoController::class, 'verifyTicket']);
+// Route::post('/sso/verify-ticket', [SsoController::class, 'verifyTicket']);
 
 // Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 //     return $request->user();
