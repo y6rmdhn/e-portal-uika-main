@@ -3,12 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreAdminRequest;
+use App\Http\Requests\UpdateAdminRequest;
 use App\Http\Resources\UserAdminResource;
 use App\Services\UserAdminService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
 use Illuminate\Http\Request;
 
 class UserController extends Controller
@@ -47,17 +47,39 @@ class UserController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+    public function store(StoreAdminRequest $request): JsonResponse
     {
-        //
+        try {
+            $user = $this->service->createUser($request->validated() + ['image' => $request->file('image')]);
+
+            return $this->successResponse(
+                new UserAdminResource($user),
+                'User Berhasil dibuat',
+                201
+            );
+        } catch (\Exception $e) {
+            $code = $e->getCode() === 422 ? 422 : 500;
+            return $this->errorResponse('Failed to create user: ' . $e->getMessage(), $code);
+        }
     }
 
     /**
      * Display the specified resource.
      */
-    public function show(string $id)
+    public function show(string $id): JsonResponse
     {
-        //
+        try {
+            $user = $this->service->getAdminDetail($id);
+
+            return $this->successResponse(
+                new UserAdminResource($user),
+                'User retrieved successfully'
+            );
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException) {
+            return $this->errorResponse('User not found', 404);
+        } catch (\Exception $e) {
+            return $this->errorResponse('Failed to retrieve user: ' . $e->getMessage(), 500);
+        }
     }
 
     /**
@@ -71,16 +93,42 @@ class UserController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, string $id)
+    public function update(UpdateAdminRequest $request, string $id): JsonResponse
     {
-        //
+        try {
+            $user = $this->service->updateAdmin(
+                $id,
+                $request->validated() + ['image' => $request->file('image')]
+            );
+
+            return $this->successResponse(
+                new UserAdminResource($user),
+                'User updated successfully'
+            );
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException) {
+            return $this->errorResponse('User not found', 404);
+        } catch (\Exception $e) {
+            $code = $e->getCode() === 422 ? 422 : 500;
+            return $this->errorResponse('Failed to update user: ' . $e->getMessage(), $code);
+        }
     }
 
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(string $id)
+    public function destroy(string $id): JsonResponse
     {
-        //
+        try {
+            $this->service->deleteAdmin($id);
+
+            return $this->successResponse(
+                null,
+                'User deleted successfully'
+            );
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException) {
+            return $this->errorResponse('User not found', 404);
+        } catch (\Exception $e) {
+            return $this->errorResponse('Failed to delete user: ' . $e->getMessage(), 500);
+        }
     }
 }

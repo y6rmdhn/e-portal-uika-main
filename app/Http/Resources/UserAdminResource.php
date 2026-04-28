@@ -15,7 +15,7 @@ class UserAdminResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id'         => $this->public_id,
+            'public_id'  => $this->public_id,
             'name'       => $this->name,
             'email'      => $this->email,
             'phone'      => $this->phone,
@@ -23,6 +23,7 @@ class UserAdminResource extends JsonResource
             'about_me'   => $this->about_me,
             'nidn'       => $this->nidn,
             'nip'        => $this->nip,
+            'npm'        => $this->npm,
             'is_active'  => (bool) $this->is_active,
             'image'      => $this->image ? asset('storage/' . $this->image) : null,
             'role'       => $this->roles->first()?->name,

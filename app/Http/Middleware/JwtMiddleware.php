@@ -27,6 +27,8 @@ class JwtMiddleware extends BaseMiddleware
 
         try {
             $user = FacadesJWTAuth::parseToken()->authenticate();
+
+            auth()->setUser($user);
         } catch (Exception $e) {
             if ($e instanceof \Tymon\JWTAuth\Exceptions\TokenInvalidException) {
                 return response()->json([

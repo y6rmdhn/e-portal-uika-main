@@ -2,32 +2,24 @@
 
 namespace App\Http\Requests;
 
-use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Http\Exceptions\HttpResponseException;
 
-class StoreAdminRequest extends FormRequest
+class UpdateAdminRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
     public function authorize(): bool
     {
         return true;
     }
 
-    /**
-     * Get the validation rules that apply to the request.
-     *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
-     */
     public function rules(): array
     {
         return [
-            'name'      => ['required', 'string', 'max:255'],
-            'email'     => ['required', 'email', 'unique:users,email'],
-            'password'  => ['required', 'string', 'min:8'],
-            'role'      => ['required', 'string', 'in:mahasiswa,dosen'],
+            'name'      => ['sometimes', 'string', 'max:255'],
+            'email'     => ['sometimes', 'email', 'unique:users,email,' . $this->route('admin') . ',public_id'],
+            'password'  => ['sometimes', 'nullable', 'string', 'min:8'],
+            'role'      => ['sometimes', 'string', 'in:mahasiswa,dosen'],
             'phone'     => ['nullable', 'string', 'max:20'],
             'location'  => ['nullable', 'string', 'max:255'],
             'about_me'  => ['nullable', 'string'],
@@ -42,13 +34,8 @@ class StoreAdminRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'name.required'      => 'Nama wajib diisi.',
-            'email.required'     => 'Email wajib diisi.',
             'email.unique'       => 'Email sudah digunakan.',
-            'password.required'  => 'Password wajib diisi.',
             'password.min'       => 'Password minimal 8 karakter.',
-            'password.confirmed' => 'Konfirmasi password tidak cocok.',
-            'role.required'      => 'Role wajib dipilih.',
             'role.in'            => 'Role tidak valid. Pilih: mahasiswa atau dosen.',
             'image.image'        => 'File harus berupa gambar.',
             'image.max'          => 'Ukuran gambar maksimal 2MB.',
@@ -59,7 +46,7 @@ class StoreAdminRequest extends FormRequest
     {
         throw new HttpResponseException(response()->json([
             'status'  => false,
-            'message' => "Validasi gagal : " . $validator->errors()->first(),
+            'message' => 'Validasi gagal : ' . $validator->errors()->first(),
         ], 422));
     }
 }

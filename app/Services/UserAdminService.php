@@ -23,12 +23,12 @@ class UserAdminService
         return $this->userRepository->findById($id);
     }
 
-    public function createAdmin(array $data): object
+    public function createUser(array $data): object
     {
         return DB::transaction(function () use ($data) {
             $this->ensureEmailUnique($data['email']);
 
-            if (asset($data['image']) && $data['image'] instanceof UploadedFile) {
+            if (isset($data['image']) && $data['image'] instanceof UploadedFile) {
                 $data['image'] = $this->uploadImage($data['image']);
             };
 
@@ -42,7 +42,7 @@ class UserAdminService
             $user = $this->userRepository->findById($id);
 
             // Cek email unik kecuali milik user itu sendiri
-            if (!empty($data['email'] && $data['email'] !== $user->email)) {
+            if (!empty($data['email']) && $data['email'] !== $user->email) {
                 $this->ensureEmailUnique($data['email']);
             };
 

@@ -1,7 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\SsoController;
-use App\Http\Controllers\UserController;
+use App\Http\Controllers\Api\UserController;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -60,11 +60,11 @@ Route::group(['middleware' => ['jwt.verify']], function () {
 
     Route::middleware(['role:admin'])->prefix('admins')->name('admins.')->group(function () {
         Route::get('/',                     [UserController::class, 'index'])->name('index');
-        Route::post('/',                    [UserAdminController::class, 'store'])->name('store');
-        Route::get('/{admin}',              [UserAdminController::class, 'show'])->name('show');
-        Route::put('/{admin}',              [UserAdminController::class, 'update'])->name('update');
-        Route::delete('/{admin}',           [UserAdminController::class, 'destroy'])->name('destroy');
-        Route::patch('/{admin}/toggle-active', [UserAdminController::class, 'toggleActive'])->name('toggle-active');
+        Route::post('/',                    [UserController::class, 'store'])->name('store');
+        Route::get('/{id}',              [UserController::class, 'show'])->name('show');
+        Route::put('/{id}',              [UserController::class, 'update'])->name('update');
+        Route::delete('/{id}',           [UserController::class, 'destroy'])->name('destroy');
+        Route::patch('/{id}/toggle-active', [UserController::class, 'toggleActive'])->name('toggle-active');
     });
 });
 

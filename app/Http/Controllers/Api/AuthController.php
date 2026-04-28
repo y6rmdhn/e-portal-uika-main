@@ -62,6 +62,11 @@ class AuthController extends Controller
                 'role_id' => $data['role_id']
             ]);
 
+            $roleMap = [1 => 'admin', 2 => 'user'];
+            if (isset($roleMap[$data['role_id']])) {
+                $user->assignRole($roleMap[$data['role_id']]);
+            }
+
             event(new Registered($user));
 
             DB::commit();
@@ -140,7 +145,7 @@ class AuthController extends Controller
         $user = FacadesJWTAuth::user();
 
         $isProduction = env('APP_ENV') === 'production';
-        
+
         $cookieDomain = $isProduction ? '.uika.ac.id' : null;
 
         $cookie = cookie(
@@ -148,7 +153,7 @@ class AuthController extends Controller
             $token,
             1440,
             '/',
-            $cookieDomain,       
+            $cookieDomain,
             $isProduction,
             true,
             false,

@@ -27,7 +27,7 @@ class UserFactory extends Factory
             'about_me' => $this->faker->sentence(),
             'is_active' => $this->faker->boolean(90),
             'image' => null,
-            'role_id' => 1,
+            // 'role_id' => 1,
         ];
     }
 
