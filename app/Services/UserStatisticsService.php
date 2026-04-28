@@ -37,12 +37,25 @@ class UserStatisticsService
      * Data untuk grafik bar chart login harian / bulanan.
      * $period: 'weekly' | 'monthly'
      */
-    public function getActiveUsersChart(string $period = 'weekly'): array
+    public function getActiveUsersChart(string $period = 'weekly'): Collection
     {
         $cacheKey = "dashboard.active_users_chart.{$period}";
 
         return Cache::remember($cacheKey, now()->addMinutes(5), function () use ($period) {
             return $this->repository->getActiveUsersOverTime($period);
+        });
+    }
+
+    /**
+     * Data untuk grafik line chart aktif vs tidak aktif.
+     * $period: 'weekly' | 'monthly'
+     */
+    public function getUserGrowth(string $period = 'monthly'): Collection
+    {
+        $cacheKey = "dashboard.user_growth.{$period}";
+
+        return Cache::remember($cacheKey, now()->addMinutes(5), function () use ($period) {
+            return $this->repository->getUserGrowth($period);
         });
     }
 
