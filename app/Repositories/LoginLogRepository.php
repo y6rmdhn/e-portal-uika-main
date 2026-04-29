@@ -85,7 +85,7 @@ class LoginLogRepository implements LoginLogRepositoryInterface
             ->where('status', 'failed')
             ->where(function ($q) use ($identifier) {
                 // identifier bisa berupa email (user_id) atau IP
-                $q->where('ip_address', $identifier);
+                $q->where('ip_address', $identifier)->orWhere('user_id', $identifier);
             })
             ->where('created_at', '>=', now()->subMinutes($minutes))
             ->count();
