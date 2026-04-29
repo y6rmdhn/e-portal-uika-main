@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\SsoController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\DashboardController;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -65,6 +66,18 @@ Route::group(['middleware' => ['jwt.verify']], function () {
         Route::put('/{id}',              [UserController::class, 'update'])->name('update');
         Route::delete('/{id}',           [UserController::class, 'destroy'])->name('destroy');
         Route::patch('/{id}/toggle-active', [UserController::class, 'toggleActive'])->name('toggle-active');
+
+        Route::prefix('dashboard')->group(function () {
+            Route::get('stats',             [DashboardController::class, 'stats']);
+            Route::get('active-users',      [DashboardController::class, 'activeUsersChart']);
+            Route::get('user-growth',       [DashboardController::class, 'userGrowth']);
+            Route::get('recent-activity',   [DashboardController::class, 'recentActivity']);
+            Route::get('idle-users',        [DashboardController::class, 'idleUsers']);
+            Route::get('role-distribution', [DashboardController::class, 'roleDistribution']);
+            Route::get('login-heatmap',     [DashboardController::class, 'loginHeatmap']);
+            Route::post('clear-cache',      [DashboardController::class, 'clearCache'])
+                ->middleware('role:super-admin'); // hanya super admin
+        });
     });
 });
 
