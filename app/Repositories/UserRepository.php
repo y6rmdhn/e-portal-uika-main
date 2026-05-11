@@ -70,6 +70,8 @@ class UserRepository implements UserRepositoryInterface
             'is_active' => $data['is_active'] ?? true,
             'nidn'      => $data['nidn'] ?? null,
             'nip'       => $data['nip'] ?? null,
+            'npm'       => $data['npm'] ?? null,
+            'image'     => $data['image'] ?? null,
         ]);
 
         $user->assignRole($data['role']);
@@ -90,6 +92,8 @@ class UserRepository implements UserRepositoryInterface
             'is_active' => $data['is_active'] ?? null,
             'nidn'      => $data['nidn'] ?? null,
             'nip'       => $data['nip'] ?? null,
+            'npm'       => $data['npm'] ?? null,
+            'image'     => $data['image'] ?? null,
         ], function ($value) {
             return !is_null($value);
         });

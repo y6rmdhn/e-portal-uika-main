@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Models\TxUserModulPermission;
 
 use App\Http\Helper\ResponseBuilder;
+use App\Services\LoginLogService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Tymon\JWTAuth\Exceptions\TokenInvalidException;
@@ -25,9 +26,16 @@ use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Support\Str;
 
 use Laravel\Socialite\Facades\Socialite;
+use Illuminate\Support\Facades\Cache;
+
 
 class AuthController extends Controller
 {
+
+    public function __construct(
+        protected LoginLogService $loginLogService
+    ) {}
+
     public function register(Request $request)
     {
         // ambil data input
@@ -93,7 +101,6 @@ class AuthController extends Controller
 
     public function auth(Request $request)
     {
-
         // validasi input
         $validator = Validator::make($request->all(), [
             'email' => 'required|email',
@@ -108,6 +115,24 @@ class AuthController extends Controller
             ], 400);
         }
 
+        if ($this->loginLogService->isIpBlocked($request->ip())) {
+            $remaining = $this->loginLogService->getLockoutRemainingSeconds($request->ip(), 'ip');
+            return response()->json([
+                'status'  => 429,
+                'message' => "Terlalu banyak percobaan login. Coba lagi dalam {$remaining} detik.",
+                'data'    => []
+            ], 429);
+        }
+
+        if ($this->loginLogService->isEmailBlocked($request->email)) {
+            $remaining = $this->loginLogService->getLockoutRemainingSeconds($request->email, 'email');
+            return response()->json([
+                'status'  => 429,
+                'message' => "Akun ini sementara dikunci karena terlalu banyak percobaan. Coba lagi dalam {$remaining} detik.",
+                'data'    => []
+            ], 429);
+        }
+
         // mengambil email dan password dari request
         $credentials = $request->only('email', 'password');
 
@@ -115,6 +140,8 @@ class AuthController extends Controller
         $userCheck = User::where('email', $request->email)->first();
 
         if ($userCheck && !$userCheck->hasVerifiedEmail()) {
+            $this->loginLogService->logFailure($request, 'email_not_verified');
+
             return response()->json([
                 'status' => 403,
                 'message' => 'Login failed. Please verify your email first.',
@@ -123,8 +150,9 @@ class AuthController extends Controller
         }
 
         try {
-
             if (! $token = FacadesJWTAuth::attempt($credentials)) {
+                $this->loginLogService->logFailure($request, 'invalid_credentials');
+
                 return response()->json([
                     'status' => 401,
                     'message' => 'Incorrect email or password.',
@@ -135,17 +163,26 @@ class AuthController extends Controller
             return response()->json([
                 'status' => 500,
                 'message' => 'A system error occurred, unable to create a token.',
-
                 // for debugging purpose, you can uncomment the line below to see the actual error message
                 // 'message' => $e->getMessage(),
                 'data' => []
             ], 500);
         }
 
+        // Ambil data user dari JWT Auth
         $user = FacadesJWTAuth::user();
 
-        $isProduction = env('APP_ENV') === 'production';
+        $this->loginLogService->logSuccess($user->id, $request);
 
+        // 1. Ambil nama role menggunakan fitur bawaan Spatie
+        $roleName = $user->getRoleNames()->first();
+
+        // 2. Ubah object model menjadi array dan sisipkan role secara manual
+        $userData = $user->makeHidden('roles')->toArray();
+        $userData['role'] = $roleName;
+
+        // Set environment untuk cookie
+        $isProduction = config('app.env') === 'production';
         $cookieDomain = $isProduction ? '.uika.ac.id' : null;
 
         $cookie = cookie(
@@ -160,8 +197,9 @@ class AuthController extends Controller
             'Lax'
         );
 
+        // 3. Return response menggunakan $userData yang sudah berbentuk array
         return ResponseBuilder::success(200, "Login successful", [
-            'user' => $user,
+            'user' => $userData,
             'token_portal' => $token
         ])->withCookie($cookie);
     }
@@ -273,11 +311,16 @@ class AuthController extends Controller
         try {
             $user = FacadesJWTAuth::user();
 
+            $roleName = $user->getRoleNames()->first();
+
+            $userData = $user->makeHidden('roles')->toArray();
+            $userData['role'] = $roleName;
+
             return response()->json([
                 'status' => 200,
                 'success' => true,
                 'message' => 'User data retrieved successfully',
-                'data' => $user
+                'data' => $userData
             ], 200);
         } catch (\Exception $e) {
             return response()->json([
@@ -398,99 +441,193 @@ class AuthController extends Controller
     }
 
     public function handleGoogleCallback()
-    {
-        try {
+{
+    try {
+        $googleUser = Socialite::driver('google')->stateless()->user();
+        $user = User::where('email', $googleUser->email)->first();
 
-            // Ambil data user dari Google
-            $googleUser = Socialite::driver('google')->stateless()->user();
-
-            // Cek apakah email ini sudah ada di database kita
-            $user = User::where('email', $googleUser->email)->first();
-
-            if (!$user) {
-                $pendingData = base64_encode(json_encode([
-                    'name' => $googleUser->name,
-                    'email' => $googleUser->email,
-                ]));
-
-                // Redirect ke halaman register React
-                return redirect('http://localhost:5173/register?social_data=' . $pendingData);
-            }
-
-            // Buat JWT Token
-            $token = FacadesJWTAuth::fromUser($user);
-
-            // Masukkan ke dalam HttpOnly Cookie
-            $cookie = cookie('token', $token, 1440, null, null, false, true);
-
-            // Bungkus data user jadi Base64 biar aman dikirim lewat URL ke React
-            $userData = base64_encode(json_encode([
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'role_id' => $user->role_id,
+        if (!$user) {
+            $pendingData = base64_encode(json_encode([
+                'name' => $googleUser->name,
+                'email' => $googleUser->email,
             ]));
-
-            // Redirect BALIK ke React (bawa data user di URL)
-            return redirect('http://localhost:5173/auth/google/success?data=' . $userData)->withCookie($cookie);
-        } catch (\Exception $e) {
-            // Kalau batal/error, kembalikan ke halaman login React bawa pesan error
-            return redirect('http://localhost:5173/login?error=GoogleLoginFailed');
+            return redirect('http://localhost:5173/register?social_data=' . $pendingData);
         }
+
+        $token = FacadesJWTAuth::fromUser($user);
+
+        $isProduction = config('app.env') === 'production';
+        $cookieDomain = $isProduction ? '.uika.ac.id' : null;
+
+        $cookie = cookie(
+            'uika_sso_token',
+            $token,
+            1440,
+            '/',
+            $cookieDomain,
+            $isProduction,
+            true,
+            false,
+            'Lax'
+        );
+
+        // Tidak ada data di URL sama sekali
+        return redirect('http://localhost:5173/auth/google/success')
+            ->withCookie($cookie);
+
+    } catch (\Exception $e) {
+        return redirect('http://localhost:5173/login?error=GoogleLoginFailed');
     }
+}
+
+    // public function call_user(Request $request)
+    // {
+    //     $validator = Validator::make($request->only('token'), []);
+    //     if ($validator->fails()) {
+    //         return ResponseBuilder::success(200, "error", $validator->messages());
+    //     }
+
+
+    //     $unitId = $request->input('unit_id');
+    //     $roleId = $request->input('role_id');
+    //     $appModuleId = $request->input('appModule_id');
+
+    //     $data = TxUserModulPermission::select(['appModule_id', 'role_id', 'unit_id'])
+    //         ->where('user_id', JWTAuth::user()->id)
+    //         ->with([
+    //             'unit' => function ($q) {
+    //                 $q->select('id', 'name', 'status');
+    //                 // jangan lupa include 'unit_id' supaya relasi tetap bisa jalan
+    //             },
+    //             'role' => function ($q) {
+    //                 $q->select('id', 'name');
+    //                 // jangan lupa include 'role_id' supaya relasi tetap bisa jalan
+    //             },
+    //             'roleHasPermission',
+    //             'appModul' => function ($q) {
+    //                 $q->select('id', 'name', 'url');
+    //                 // jangan lupa include 'app_modul_id' supaya relasi tetap bisa jalan
+    //             },
+    //             'appModul.permission' => function ($q) {
+    //                 $q->select('id', 'appModule_id', 'name');
+    //                 // jangan lupa include 'app_modul_id' supaya relasi tetap bisa jalan
+    //             }
+    //         ]);
+    //     if ($roleId && $appModuleId && $unitId) {
+    //         $data = $data->where('role_id', $roleId)
+    //             ->where('appModule_id', $appModuleId)
+    //             ->where('unit_id', $unitId);
+    //     } else {
+    //         return ResponseBuilder::success(200, "error", 'Parameter yang di butuhkan tidak sesuai / harus diisi');
+    //     }
+
+    //     $data = $data->get();
+
+    //     return ResponseBuilder::success(200, "success", [
+    //         'user' => JWTAuth::user()->only('id', 'name', 'email', 'nidn', 'nip', 'npm', 'phone', 'location', 'is_active', 'image'),
+    //         // 'user_module_permission' => $data,
+
+    //         'detail' => $data,
+    //         // 'permissions' => $data->pluck('appModul')->flatten()->pluck('permission')->flatten()->unique('id')->values(),
+
+    //         // 'role_has_permission' => null,
+    //         'token_eportal' => 'Bearer ' . $request->token
+    //     ]);
+    // }
 
     public function call_user(Request $request)
+{
+    $validator = Validator::make($request->only('token'), []);
+    if ($validator->fails()) {
+        return ResponseBuilder::success(200, "error", $validator->messages());
+    }
+
+    $roleId      = $request->input('role_id');
+    $appModuleId = $request->input('appModule_id');
+
+    if (!$roleId || !$appModuleId) {
+        return ResponseBuilder::success(200, "error", 'Parameter role_id dan appModule_id harus diisi');
+    }
+
+    $user = JWTAuth::user();
+
+    // Ambil role dari Spatie
+    $roleName = $user->getRoleNames()->first() ?? '';
+
+    $data = TxUserModulPermission::select(['appModule_id', 'role_id', 'permission_id'])
+        ->where('user_id', $user->id)
+        ->where('role_id', $roleId)
+        ->where('appModule_id', $appModuleId)
+        ->with([
+            'role' => function ($q) {
+                $q->select('id', 'name');
+            },
+            'roleHasPermission',
+            'appModul' => function ($q) {
+                $q->select('id', 'name', 'url');
+            },
+            'appModul.permission' => function ($q) {
+                $q->select('id', 'appModule_id', 'name');
+            }
+        ])
+        ->get();
+
+    $userData = $user->only('id', 'name', 'email', 'nidn', 'nip', 'npm', 'phone', 'location', 'is_active', 'image');
+    $userData['role'] = $roleName; // ← tambah ini
+
+    return ResponseBuilder::success(200, "success", [
+        'user'          => $userData,
+        'detail'        => $data,
+        'token_eportal' => 'Bearer ' . $request->token
+    ]);
+}
+
+    public function redirect(Request $request)
     {
-        $validator = Validator::make($request->only('token'), []);
-        if ($validator->fails()) {
-            return ResponseBuilder::success(200, "error", $validator->messages());
-        }
+        try {
+            // Baca token dari HttpOnly cookie (server bisa baca, JS tidak bisa)
+            $token = $request->cookie('uika_sso_token');
 
+            if (!$token) {
+                return response()->json([
+                    'status' => 401,
+                    'message' => 'No active session found.',
+                ], 401);
+            }
 
-        $unitId = $request->input('unit_id');
-        $roleId = $request->input('role_id');
-        $appModuleId = $request->input('appModule_id');
+            // Validasi token masih valid
+            FacadesJWTAuth::setToken($token)->authenticate();
 
-        $data = TxUserModulPermission::select(['appModule_id', 'role_id', 'unit_id'])
-            ->where('user_id', JWTAuth::user()->id)
-            ->with([
-                'unit' => function ($q) {
-                    $q->select('id', 'name', 'status');
-                    // jangan lupa include 'unit_id' supaya relasi tetap bisa jalan
-                },
-                'role' => function ($q) {
-                    $q->select('id', 'name');
-                    // jangan lupa include 'role_id' supaya relasi tetap bisa jalan
-                },
-                'roleHasPermission',
-                'appModul' => function ($q) {
-                    $q->select('id', 'name', 'url');
-                    // jangan lupa include 'app_modul_id' supaya relasi tetap bisa jalan
-                },
-                'appModul.permission' => function ($q) {
-                    $q->select('id', 'appModule_id', 'name');
-                    // jangan lupa include 'app_modul_id' supaya relasi tetap bisa jalan
-                }
+            $targetUrl    = $request->query('target_url');
+            $role_id      = $request->query('role_id');
+            $appModule_id = $request->query('appModule_id');
+            $unit_id      = $request->query('unit_id', '1');
+
+            if (!$targetUrl || !$role_id || !$appModule_id) {
+                return response()->json([
+                    'status'  => 400,
+                    'message' => 'Missing required parameters.',
+                ], 400);
+            }
+
+            // Redirect ke SIAKAD dengan token di URL (short-lived, 1x pakai lebih ideal)
+            $redirectUrl = $targetUrl . '?' . http_build_query([
+                'token'        => $token,
+                'role_id'      => $role_id,
+                'appModule_id' => $appModule_id,
+                'unit_id'      => $unit_id,
             ]);
-        if ($roleId && $appModuleId && $unitId) {
-            $data = $data->where('role_id', $roleId)
-                ->where('appModule_id', $appModuleId)
-                ->where('unit_id', $unitId);
-        } else {
-            return ResponseBuilder::success(200, "error", 'Parameter yang di butuhkan tidak sesuai / harus diisi');
+
+            return response()->json([
+                'status'       => 200,
+                'redirect_url' => $redirectUrl,
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status'  => 401,
+                'message' => 'Session invalid or expired.',
+            ], 401);
         }
-
-        $data = $data->get();
-
-        return ResponseBuilder::success(200, "success", [
-            'user' => JWTAuth::user()->only('id', 'name', 'email', 'nidn', 'nip', 'npm', 'phone', 'location', 'is_active', 'image'),
-            // 'user_module_permission' => $data,
-
-            'detail' => $data,
-            // 'permissions' => $data->pluck('appModul')->flatten()->pluck('permission')->flatten()->unique('id')->values(),
-
-            // 'role_has_permission' => null,
-            'token_eportal' => 'Bearer ' . $request->token
-        ]);
     }
 }

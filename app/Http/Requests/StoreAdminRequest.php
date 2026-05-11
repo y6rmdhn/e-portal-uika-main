@@ -22,22 +22,22 @@ class StoreAdminRequest extends FormRequest
      * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
      */
     public function rules(): array
-    {
-        return [
-            'name'      => ['required', 'string', 'max:255'],
-            'email'     => ['required', 'email', 'unique:users,email'],
-            'password'  => ['required', 'string', 'min:8'],
-            'role'      => ['required', 'string', 'in:mahasiswa,dosen'],
-            'phone'     => ['nullable', 'string', 'max:20'],
-            'location'  => ['nullable', 'string', 'max:255'],
-            'about_me'  => ['nullable', 'string'],
-            'nidn'      => ['nullable', 'string', 'max:20'],
-            'nip'       => ['nullable', 'string', 'max:20'],
-            'npm'       => ['nullable', 'string', 'max:20'],
-            'is_active' => ['nullable', 'boolean'],
-            'image'     => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
-        ];
-    }
+{
+    return [
+        'name'      => ['required', 'string', 'max:255'],
+        'email'     => ['required', 'email', 'unique:users,email'],
+        'password'  => ['required', 'string', 'min:8'],
+        'role'      => ['required', 'string', 'in:mahasiswa,dosen,admin'],
+        'phone'     => ['nullable', 'string', 'max:20'],
+        'location'  => ['nullable', 'string', 'max:255'],
+        'about_me'  => ['nullable', 'string'],
+        'nidn'      => ['nullable', 'string', 'max:20'],
+        'nip'       => ['nullable', 'string', 'max:20'],
+        'npm'       => ['nullable', 'string', 'max:20'],
+        'is_active' => ['nullable', 'in:true,false,1,0'],
+        'image'     => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+    ];
+}
 
     public function messages(): array
     {

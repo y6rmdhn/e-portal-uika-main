@@ -1,46 +1,25 @@
 <?php
 
-use App\Http\Controllers\Api\SsoController;
+use App\Http\Controllers\Api\LoginLogController;
 use App\Http\Controllers\Api\UserController;
-use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\AuthController; // <-- Tambahan: Import AuthController
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Cache;
 
 /*
 |--------------------------------------------------------------------------
 | API Routes
 |--------------------------------------------------------------------------
-|
-| Here is where you can register API routes for your application. These
-| routes are loaded by the RouteServiceProvider within a group which
-| is assigned the "api" middleware group. Enjoy building your API!
-|
 */
 
+// ==========================================
+// PUBLIC ROUTES (Tidak butuh login/token)
+// ==========================================
 Route::post('/auth/login', 'Api\AuthController@auth');
 Route::post('/auth/login/tias', 'Api\AuthController@authTias');
 Route::post('/register', 'Api\AuthController@register');
-
-Route::get('/email/verify/{id}/{hash}', function (Request $request, $id) {
-    // Cari user berdasarkan ID
-    $user = User::findOrFail($id);
-
-    // Cek apakah hash-nya valid
-    if (! hash_equals((string) $request->hash, sha1($user->getEmailForVerification()))) {
-        return response()->json(['message' => 'Link verifikasi tidak valid atau sudah kedaluwarsa.'], 400);
-    }
-
-    // Jika belum verifikasi, tandai sudah verifikasi
-    if (!$user->hasVerifiedEmail()) {
-        $user->markEmailAsVerified();
-    }
-
-    // url for development
-    return redirect('http://localhost:5173/login?verified=true');
-})->middleware(['signed'])->name('verification.verify');
 
 Route::post('/password/email', 'Api\AuthController@sendResetLinkEmail');
 Route::post('/password/reset', 'Api\AuthController@resetPassword');
@@ -48,6 +27,25 @@ Route::post('/password/reset', 'Api\AuthController@resetPassword');
 Route::get('/auth/google/redirect', 'Api\AuthController@redirectToGoogle');
 Route::get('/auth/google/callback', 'Api\AuthController@handleGoogleCallback');
 
+// Route Verifikasi Email
+Route::get('/email/verify/{id}/{hash}', function (Request $request, $id) {
+    $user = User::findOrFail($id);
+
+    if (! hash_equals((string) $request->hash, sha1($user->getEmailForVerification()))) {
+        return response()->json(['message' => 'Link verifikasi tidak valid atau sudah kedaluwarsa.'], 400);
+    }
+
+    if (!$user->hasVerifiedEmail()) {
+        $user->markEmailAsVerified();
+    }
+
+    return redirect('http://localhost:5173/login?verified=true');
+})->middleware(['signed'])->name('verification.verify');
+
+
+// ==========================================
+// PROTECTED ROUTES (Wajib login / wajib ada token JWT)
+// ==========================================
 Route::group(['middleware' => ['jwt.verify']], function () {
     Route::post('/logout', 'Api\AuthController@logout');
     Route::get('/get_user', 'Api\AuthController@get_user');
@@ -57,13 +55,15 @@ Route::group(['middleware' => ['jwt.verify']], function () {
     Route::get('/tx_user_modul_permission', 'Api\TxUserModulPermissionController@index');
     Route::get('/call_user', 'Api\AuthController@call_user');
 
-    // Route::post('/sso/generate-ticket', [SsoController::class, 'generateTicket']);
+    // Route SSO untuk redirect ke app (Butuh Auth)
+    Route::get('/sso/redirect', [AuthController::class, 'redirect']);
 
+    // Admin Routes
     Route::middleware(['role:admin'])->prefix('admins')->name('admins.')->group(function () {
         Route::get('/',                     [UserController::class, 'index'])->name('index');
         Route::post('/',                    [UserController::class, 'store'])->name('store');
         Route::get('/{id}',              [UserController::class, 'show'])->name('show');
-        Route::put('/{id}',              [UserController::class, 'update'])->name('update');
+        Route::match(['POST', 'PUT'], '/{id}', [UserController::class, 'update'])->name('update');
         Route::delete('/{id}',           [UserController::class, 'destroy'])->name('destroy');
         Route::patch('/{id}/toggle-active', [UserController::class, 'toggleActive'])->name('toggle-active');
 
@@ -76,14 +76,17 @@ Route::group(['middleware' => ['jwt.verify']], function () {
             Route::get('role-distribution', [DashboardController::class, 'roleDistribution']);
             Route::get('login-heatmap',     [DashboardController::class, 'loginHeatmap']);
             Route::post('clear-cache',      [DashboardController::class, 'clearCache'])
-                ->middleware('role:super-admin'); // hanya super admin
+                ->middleware('role:super-admin');
+        });
+
+        Route::prefix('security')->name('security.')->group(function () {
+            Route::get('logs',                [LoginLogController::class, 'index'])->name('logs.index');
+            Route::get('logs/user/{id}',      [LoginLogController::class, 'byUser'])->name('logs.by-user');
+            Route::get('suspicious-ips',      [LoginLogController::class, 'suspiciousIps'])->name('suspicious-ips');
+            Route::get('rate-limit-status',   [LoginLogController::class, 'rateLimitStatus'])->name('rate-limit-status');
+            Route::delete('logs/purge',       [LoginLogController::class, 'purge'])
+                ->middleware('role:admin')
+                ->name('logs.purge');
         });
     });
 });
-
-// Endpoint untuk Express
-// Route::post('/sso/verify-ticket', [SsoController::class, 'verifyTicket']);
-
-// Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-//     return $request->user();
-// });

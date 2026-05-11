@@ -32,7 +32,8 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         'about_me',
         'is_active',
         'image',
-        "role_id"
+        "role_id",
+        'last_login_at',
     ];
 
     /**
@@ -53,6 +54,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
      */
     protected $casts = [
         'email_verified_at' => 'datetime',
+        'last_login_at' => 'datetime',
     ];
 
     public function uniqueIds()

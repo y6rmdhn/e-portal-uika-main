@@ -10,6 +10,7 @@ use App\Services\UserAdminService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class UserController extends Controller
 {
@@ -49,8 +50,15 @@ class UserController extends Controller
      */
     public function store(StoreAdminRequest $request): JsonResponse
     {
+
+
         try {
-            $user = $this->service->createUser($request->validated() + ['image' => $request->file('image')]);
+            $data = $request->validated();
+            $data['is_active'] = filter_var($data['is_active'] ?? true, FILTER_VALIDATE_BOOLEAN);
+            $data['image'] = $request->file('image');
+
+
+            $user = $this->service->createUser($data);
 
             return $this->successResponse(
                 new UserAdminResource($user),
@@ -95,11 +103,14 @@ class UserController extends Controller
      */
     public function update(UpdateAdminRequest $request, string $id): JsonResponse
     {
+
         try {
-            $user = $this->service->updateAdmin(
-                $id,
-                $request->validated() + ['image' => $request->file('image')]
-            );
+
+            $data = $request->validated();
+            $data['is_active'] = filter_var($data['is_active'] ?? null, FILTER_VALIDATE_BOOLEAN);
+            $data['image'] = $request->file('image');
+
+            $user = $this->service->updateAdmin($id, $data);
 
             return $this->successResponse(
                 new UserAdminResource($user),
