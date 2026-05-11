@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\LoginLogController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\AuthController; // <-- Tambahan: Import AuthController
+use App\Http\Controllers\Api\ProfileController;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -57,6 +58,13 @@ Route::group(['middleware' => ['jwt.verify']], function () {
 
     // Route SSO untuk redirect ke app (Butuh Auth)
     Route::get('/sso/redirect', [AuthController::class, 'redirect']);
+
+    // profile
+    Route::prefix('profile')->group(function () {
+        Route::get('/',                 [ProfileController::class, 'show']);
+        Route::post('/update',          [ProfileController::class, 'update']);
+        Route::post('/change-password', [ProfileController::class, 'changePassword']);
+    });
 
     // Admin Routes
     Route::middleware(['role:admin'])->prefix('admins')->name('admins.')->group(function () {
