@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Exports\UsersExport;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreAdminRequest;
 use App\Http\Requests\UpdateAdminRequest;
@@ -12,6 +13,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use App\Http\Requests\ResetUserPasswordRequest;
+use App\Imports\UsersImport;
+use Maatwebsite\Excel\Facades\Excel;
 
 class UserController extends Controller
 {
@@ -154,6 +157,31 @@ class UserController extends Controller
             return $this->errorResponse('User not found', 404);
         } catch (\Exception $e) {
             return $this->errorResponse('Failed to reset password: ' . $e->getMessage(), 500);
+        }
+    }
+
+    public function export(Request $request): \Symfony\Component\HttpFoundation\BinaryFileResponse
+    {
+        $filters = $request->only(['role', 'search']);
+        return Excel::download(new UsersExport($filters), 'users-' . now()->format('Y-m-d') . '.xlsx');
+    }
+
+    public function import(Request $request): JsonResponse
+    {
+        $request->validate([
+            'file' => ['required', 'file', 'mimes:xlsx,xls,csv', 'max:5120'],
+        ]);
+
+        try {
+            $import = new UsersImport();
+            Excel::import($import, $request->file('file'));
+
+            return $this->successResponse([
+                'imported' => count($import->imported),
+                'failed'   => $import->failed,
+            ], 'Import selesai. ' . count($import->imported) . ' data berhasil diimport.');
+        } catch (\Exception $e) {
+            return $this->errorResponse('Gagal import: ' . $e->getMessage(), 500);
         }
     }
 }

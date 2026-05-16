@@ -70,11 +70,14 @@ Route::group(['middleware' => ['jwt.verify']], function () {
     Route::middleware(['role:admin'])->prefix('admins')->name('admins.')->group(function () {
         Route::get('/',                     [UserController::class, 'index'])->name('index');
         Route::post('/',                    [UserController::class, 'store'])->name('store');
+
+        Route::get('/export',    [UserController::class, 'export'])->name('export');
+        Route::post('/import',   [UserController::class, 'import'])->name('import');
+
         Route::get('/{id}',              [UserController::class, 'show'])->name('show');
         Route::match(['POST', 'PUT'], '/{id}', [UserController::class, 'update'])->name('update');
         Route::delete('/{id}',           [UserController::class, 'destroy'])->name('destroy');
         Route::patch('/{id}/toggle-active', [UserController::class, 'toggleActive'])->name('toggle-active');
-
         Route::post('/{id}/reset-password', [UserController::class, 'resetPassword'])->name('reset-password');
 
         Route::prefix('dashboard')->group(function () {
