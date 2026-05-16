@@ -2,10 +2,13 @@
 
 namespace App\Services;
 
+use App\Mail\AdminResetPasswordMail;
 use App\Repositories\Interfaces\UserRepositoryInterface;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
+use Tymon\JWTAuth\Facades\JWTAuth;
 
 class UserAdminService
 {
@@ -75,6 +78,25 @@ class UserAdminService
     public function toggleActive(string $id): object
     {
         return $this->userRepository->toggleActive($id);
+    }
+
+    public function resetUserPassword(string $id, string $password): object
+    {
+        return DB::transaction(function () use ($id, $password) {
+            $user  = $this->userRepository->findById($id);
+            $admin = JWTAuth::user();
+
+            $result = $this->userRepository->resetPassword($id, $password);
+
+            // Kirim email notifikasi ke user
+            Mail::to($user->email)->send(new AdminResetPasswordMail(
+                userName: $user->name,
+                newPassword: $password,
+                adminName: $admin->name,
+            ));
+
+            return $result;
+        });
     }
 
     // ─── Private Helpers ──────────────────────────────────────────────────────

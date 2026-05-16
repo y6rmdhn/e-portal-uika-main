@@ -128,4 +128,11 @@ class UserRepository implements UserRepositoryInterface
         $user->update(['is_active' => !$user->is_active]);
         return $user->fresh('roles');
     }
+
+    public function resetPassword(string $id, string $password): object
+    {
+        $user = $this->findById($id);
+        $user->update(['password' => Hash::make($password)]);
+        return $user->fresh('roles');
+    }
 }

@@ -11,6 +11,7 @@ use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use App\Http\Requests\ResetUserPasswordRequest;
 
 class UserController extends Controller
 {
@@ -140,6 +141,19 @@ class UserController extends Controller
             return $this->errorResponse('User not found', 404);
         } catch (\Exception $e) {
             return $this->errorResponse('Failed to delete user: ' . $e->getMessage(), 500);
+        }
+    }
+
+    public function resetPassword(ResetUserPasswordRequest $request, string $id): JsonResponse
+    {
+        try {
+            $this->service->resetUserPassword($id, $request->validated()['password']);
+
+            return $this->successResponse(null, 'Password berhasil direset dan email notifikasi telah dikirim.');
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException) {
+            return $this->errorResponse('User not found', 404);
+        } catch (\Exception $e) {
+            return $this->errorResponse('Failed to reset password: ' . $e->getMessage(), 500);
         }
     }
 }

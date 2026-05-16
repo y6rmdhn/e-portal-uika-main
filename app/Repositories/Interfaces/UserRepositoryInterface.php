@@ -11,4 +11,5 @@ interface UserRepositoryInterface
     public function update(string $id, array $data): object;
     public function delete(string $id): bool;
     public function toggleActive(string $id): object;
+    public function resetPassword(string $id, string $password): object;
 }
