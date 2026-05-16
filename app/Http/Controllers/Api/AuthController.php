@@ -28,7 +28,6 @@ use Illuminate\Support\Str;
 use Laravel\Socialite\Facades\Socialite;
 use Illuminate\Support\Facades\Cache;
 
-
 class AuthController extends Controller
 {
 
@@ -172,6 +171,7 @@ class AuthController extends Controller
         // Ambil data user dari JWT Auth
         $user = FacadesJWTAuth::user();
 
+        $user->update(['last_login_at' => now()]);
         $this->loginLogService->logSuccess($user->id, $request);
 
         // 1. Ambil nama role menggunakan fitur bawaan Spatie
@@ -268,7 +268,7 @@ class AuthController extends Controller
         try {
             FacadesJWTAuth::parseToken()->invalidate();
 
-            $cookie = cookie()->forget('token');
+            $cookie = cookie()->forget('uika_sso_token');
 
             return response()->json([
                 'status' => 200,
@@ -315,6 +315,10 @@ class AuthController extends Controller
 
             $userData = $user->makeHidden('roles')->toArray();
             $userData['role'] = $roleName;
+
+            if (!empty($userData['image']) && !filter_var($userData['image'], FILTER_VALIDATE_URL)) {
+                $userData['image'] = asset('storage/' . $userData['image']);
+            }
 
             return response()->json([
                 'status' => 200,
@@ -441,44 +445,43 @@ class AuthController extends Controller
     }
 
     public function handleGoogleCallback()
-{
-    try {
-        $googleUser = Socialite::driver('google')->stateless()->user();
-        $user = User::where('email', $googleUser->email)->first();
+    {
+        try {
+            $googleUser = Socialite::driver('google')->stateless()->user();
+            $user = User::where('email', $googleUser->email)->first();
 
-        if (!$user) {
-            $pendingData = base64_encode(json_encode([
-                'name' => $googleUser->name,
-                'email' => $googleUser->email,
-            ]));
-            return redirect('http://localhost:5173/register?social_data=' . $pendingData);
+            if (!$user) {
+                $pendingData = base64_encode(json_encode([
+                    'name' => $googleUser->name,
+                    'email' => $googleUser->email,
+                ]));
+                return redirect('http://localhost:5173/register?social_data=' . $pendingData);
+            }
+
+            $token = FacadesJWTAuth::fromUser($user);
+
+            $isProduction = config('app.env') === 'production';
+            $cookieDomain = $isProduction ? '.uika.ac.id' : null;
+
+            $cookie = cookie(
+                'uika_sso_token',
+                $token,
+                1440,
+                '/',
+                $cookieDomain,
+                $isProduction,
+                true,
+                false,
+                'Lax'
+            );
+
+            // Tidak ada data di URL sama sekali
+            return redirect('http://localhost:5173/auth/google/success')
+                ->withCookie($cookie);
+        } catch (\Exception $e) {
+            return redirect('http://localhost:5173/login?error=GoogleLoginFailed');
         }
-
-        $token = FacadesJWTAuth::fromUser($user);
-
-        $isProduction = config('app.env') === 'production';
-        $cookieDomain = $isProduction ? '.uika.ac.id' : null;
-
-        $cookie = cookie(
-            'uika_sso_token',
-            $token,
-            1440,
-            '/',
-            $cookieDomain,
-            $isProduction,
-            true,
-            false,
-            'Lax'
-        );
-
-        // Tidak ada data di URL sama sekali
-        return redirect('http://localhost:5173/auth/google/success')
-            ->withCookie($cookie);
-
-    } catch (\Exception $e) {
-        return redirect('http://localhost:5173/login?error=GoogleLoginFailed');
     }
-}
 
     // public function call_user(Request $request)
     // {
@@ -536,51 +539,51 @@ class AuthController extends Controller
     // }
 
     public function call_user(Request $request)
-{
-    $validator = Validator::make($request->only('token'), []);
-    if ($validator->fails()) {
-        return ResponseBuilder::success(200, "error", $validator->messages());
+    {
+        $validator = Validator::make($request->only('token'), []);
+        if ($validator->fails()) {
+            return ResponseBuilder::success(200, "error", $validator->messages());
+        }
+
+        $roleId      = $request->input('role_id');
+        $appModuleId = $request->input('appModule_id');
+
+        if (!$roleId || !$appModuleId) {
+            return ResponseBuilder::success(200, "error", 'Parameter role_id dan appModule_id harus diisi');
+        }
+
+        $user = JWTAuth::user();
+
+        // Ambil role dari Spatie
+        $roleName = $user->getRoleNames()->first() ?? '';
+
+        $data = TxUserModulPermission::select(['appModule_id', 'role_id', 'permission_id'])
+            ->where('user_id', $user->id)
+            ->where('role_id', $roleId)
+            ->where('appModule_id', $appModuleId)
+            ->with([
+                'role' => function ($q) {
+                    $q->select('id', 'name');
+                },
+                'roleHasPermission',
+                'appModul' => function ($q) {
+                    $q->select('id', 'name', 'url');
+                },
+                'appModul.permission' => function ($q) {
+                    $q->select('id', 'appModule_id', 'name');
+                }
+            ])
+            ->get();
+
+        $userData = $user->only('id', 'name', 'email', 'nidn', 'nip', 'npm', 'phone', 'location', 'is_active', 'image');
+        $userData['role'] = $roleName; // ← tambah ini
+
+        return ResponseBuilder::success(200, "success", [
+            'user'          => $userData,
+            'detail'        => $data,
+            'token_eportal' => 'Bearer ' . $request->token
+        ]);
     }
-
-    $roleId      = $request->input('role_id');
-    $appModuleId = $request->input('appModule_id');
-
-    if (!$roleId || !$appModuleId) {
-        return ResponseBuilder::success(200, "error", 'Parameter role_id dan appModule_id harus diisi');
-    }
-
-    $user = JWTAuth::user();
-
-    // Ambil role dari Spatie
-    $roleName = $user->getRoleNames()->first() ?? '';
-
-    $data = TxUserModulPermission::select(['appModule_id', 'role_id', 'permission_id'])
-        ->where('user_id', $user->id)
-        ->where('role_id', $roleId)
-        ->where('appModule_id', $appModuleId)
-        ->with([
-            'role' => function ($q) {
-                $q->select('id', 'name');
-            },
-            'roleHasPermission',
-            'appModul' => function ($q) {
-                $q->select('id', 'name', 'url');
-            },
-            'appModul.permission' => function ($q) {
-                $q->select('id', 'appModule_id', 'name');
-            }
-        ])
-        ->get();
-
-    $userData = $user->only('id', 'name', 'email', 'nidn', 'nip', 'npm', 'phone', 'location', 'is_active', 'image');
-    $userData['role'] = $roleName; // ← tambah ini
-
-    return ResponseBuilder::success(200, "success", [
-        'user'          => $userData,
-        'detail'        => $data,
-        'token_eportal' => 'Bearer ' . $request->token
-    ]);
-}
 
     public function redirect(Request $request)
     {
@@ -622,7 +625,6 @@ class AuthController extends Controller
                 'status'       => 200,
                 'redirect_url' => $redirectUrl,
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'status'  => 401,

@@ -19,7 +19,7 @@ class StatsResource extends JsonResource
             'active_users'    => $this->active_users,
             'inactive_users'  => $this->inactive_users,
             'new_this_month'  => $this->new_this_month,
-            'active_sessions' => $this->active_sessions,
+            'total_login_today' => $this->total_login_today,
             'active_rate'     => $this->active_rate . '%',
         ];
     }

@@ -38,13 +38,13 @@ class UserStatisticsRepository implements UserStatisticsRepositoryInterface
         return $this->model->whereMonth('created_at', now()->month)->whereYear('created_at', now()->year)->count();
     }
 
-    public function getActiveSessions(): int
-    {
-        // Jika pakai database session driver
-        return DB::table('sessions')
-            ->where('last_activity', '>=', now()->subHours(1)->timestamp)
-            ->count();
-    }
+    public function getTotalLoginToday(): int
+{
+    return DB::table('user_login_logs')
+        ->whereDate('created_at', today())
+        ->where('status', 'success')
+        ->count();
+}
 
     public function getActiveUsersOverTime(string $period = 'weekly'): Collection
     {

@@ -27,7 +27,7 @@ class UserStatisticsService
                 'active_users' => $active,
                 'inactive_users' => $inactive,
                 'new_this_month' => $this->repository->getNewUsersThisMonth(),
-                'active_sessions' => $this->repository->getActiveSessions(),
+                'total_login_today' => $this->repository->getTotalLoginToday(),
                 'active_rate' => $total > 0 ? round(($active / $total) * 100, 1) : 0,
             ];
         });

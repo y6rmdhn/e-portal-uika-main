@@ -14,7 +14,7 @@ interface UserStatisticsRepositoryInterface
 
     public function getNewUsersThisMonth(): int;
 
-    public function getActiveSessions(): int;
+    public function getTotalLoginToday(): int;
 
     public function getActiveUsersOverTime(string $period = 'weekly'): Collection;
 
