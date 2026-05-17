@@ -32,6 +32,10 @@ class Kernel extends ConsoleKernel
         }
 
         $schedule->command('security:purge-logs --days=90')->weekly();
+
+        $schedule->call(function () {
+            app(\App\Services\ActivityLogService::class)->purgeOldLogs(180);
+        })->monthly();
     }
 
     /**

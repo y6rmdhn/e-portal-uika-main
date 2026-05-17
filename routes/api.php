@@ -79,6 +79,7 @@ Route::group(['middleware' => ['jwt.verify']], function () {
         Route::delete('/{id}',           [UserController::class, 'destroy'])->name('destroy');
         Route::patch('/{id}/toggle-active', [UserController::class, 'toggleActive'])->name('toggle-active');
         Route::post('/{id}/reset-password', [UserController::class, 'resetPassword'])->name('reset-password');
+        Route::get('/{id}/activity-logs', [UserController::class, 'activityLogs'])->name('activity-logs');
 
         Route::prefix('dashboard')->group(function () {
             Route::get('stats',             [DashboardController::class, 'stats']);

@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Log;
 use App\Http\Requests\ResetUserPasswordRequest;
 use App\Imports\UsersImport;
 use Maatwebsite\Excel\Facades\Excel;
+use App\Services\ActivityLogService;
 
 class UserController extends Controller
 {
@@ -22,7 +23,8 @@ class UserController extends Controller
     use ApiResponse;
 
     public function __construct(
-        protected UserAdminService $service
+        protected UserAdminService $service,
+        protected ActivityLogService $activityLog,
     ) {}
 
     /**
@@ -182,6 +184,21 @@ class UserController extends Controller
             ], 'Import selesai. ' . count($import->imported) . ' data berhasil diimport.');
         } catch (\Exception $e) {
             return $this->errorResponse('Gagal import: ' . $e->getMessage(), 500);
+        }
+    }
+
+    public function activityLogs(Request $request, string $id): JsonResponse
+    {
+        try {
+            $user    = $this->service->getAdminDetail($id);
+            $filters = $request->only(['type', 'date_from', 'date_to', 'per_page']);
+            $logs    = $this->activityLog->getByUser($user->id, $filters);
+
+            return $this->paginatedResponse($logs, 'Activity logs retrieved', \App\Http\Resources\ActivityLogResource::class);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException) {
+            return $this->errorResponse('User not found', 404);
+        } catch (\Exception $e) {
+            return $this->errorResponse('Failed to retrieve logs: ' . $e->getMessage(), 500);
         }
     }
 }

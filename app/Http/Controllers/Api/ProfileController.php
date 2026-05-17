@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ProfileResource;
+use App\Services\ActivityLogService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -16,6 +17,7 @@ use Tymon\JWTAuth\Facades\JWTAuth;
 class ProfileController extends Controller
 {
     use ApiResponse;
+    public function __construct(protected ActivityLogService $activityLog) {}
 
     public function show(): JsonResponse
     {
@@ -54,6 +56,10 @@ class ProfileController extends Controller
         }
 
         $user->update($data);
+        $this->activityLog->logForCurrentUser(
+            ActivityLogService::TYPE_UPDATE_PROFILE,
+            'Memperbarui data profile',
+        );
 
         return $this->successResponse(
             new ProfileResource($user->fresh('roles')),
@@ -92,6 +98,11 @@ class ProfileController extends Controller
         $user->update([
             'password' => Hash::make($request->password),
         ]);
+
+        $this->activityLog->logForCurrentUser(
+            ActivityLogService::TYPE_CHANGE_PASSWORD,
+            'Mengubah password akun',
+        );
 
         return $this->successResponse(null, 'Password berhasil diubah.');
     }

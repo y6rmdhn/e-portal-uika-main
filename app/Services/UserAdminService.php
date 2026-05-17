@@ -13,7 +13,8 @@ use Tymon\JWTAuth\Facades\JWTAuth;
 class UserAdminService
 {
     public function __construct(
-        protected UserRepositoryInterface $userRepository
+        protected UserRepositoryInterface $userRepository,
+        protected ActivityLogService $activityLog,
     ) {}
 
     public function getAllUsers(array $filters = [])
@@ -94,6 +95,14 @@ class UserAdminService
                 newPassword: $password,
                 adminName: $admin->name,
             ));
+
+            $this->activityLog->log(
+                ActivityLogService::TYPE_RESET_PASSWORD,
+                "Password direset oleh administrator {$admin->name}",
+                userId: $user->id,
+                actorId: $admin->id,
+                metadata: ['admin_name' => $admin->name, 'admin_email' => $admin->email],
+            );
 
             return $result;
         });

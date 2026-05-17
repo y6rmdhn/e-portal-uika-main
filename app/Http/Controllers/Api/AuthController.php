@@ -27,12 +27,14 @@ use Illuminate\Support\Str;
 
 use Laravel\Socialite\Facades\Socialite;
 use Illuminate\Support\Facades\Cache;
+use App\Services\ActivityLogService;
 
 class AuthController extends Controller
 {
 
     public function __construct(
-        protected LoginLogService $loginLogService
+        protected LoginLogService $loginLogService,
+        protected ActivityLogService $activityLog,
     ) {}
 
     public function register(Request $request)
@@ -172,6 +174,15 @@ class AuthController extends Controller
         $user = FacadesJWTAuth::user();
 
         $user->update(['last_login_at' => now()]);
+
+        $this->activityLog->log(
+            ActivityLogService::TYPE_LOGIN,
+            'Login ke E-Portal',
+            userId: $user->id,
+            actorId: $user->id,
+            metadata: ['ip' => $request->ip(), 'browser' => $request->userAgent()],
+        );
+
         $this->loginLogService->logSuccess($user->id, $request);
 
         // 1. Ambil nama role menggunakan fitur bawaan Spatie
@@ -269,6 +280,11 @@ class AuthController extends Controller
             FacadesJWTAuth::parseToken()->invalidate();
 
             $cookie = cookie()->forget('uika_sso_token');
+
+            $this->activityLog->logForCurrentUser(
+                ActivityLogService::TYPE_LOGOUT,
+                'Logout dari E-Portal',
+            );
 
             return response()->json([
                 'status' => 200,
