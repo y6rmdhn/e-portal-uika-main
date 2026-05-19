@@ -7,13 +7,12 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Laravel\Passport\HasApiTokens as PassportHasApiTokens;
 use Tymon\JWTAuth\Contracts\JWTSubject;
 use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable implements JWTSubject, MustVerifyEmail
 {
-    use PassportHasApiTokens, HasFactory, Notifiable, HasRoles, HasUuids;
+    use HasFactory, Notifiable, HasRoles, HasUuids;
 
     /**
      * The attributes that are mass assignable.
