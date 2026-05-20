@@ -194,7 +194,7 @@ class AuthController extends Controller
 
         // Set environment untuk cookie
         $isProduction = config('app.env') === 'production';
-        $cookieDomain = $isProduction ? '.uika.ac.id' : null;
+        $cookieDomain = $isProduction ? '.uika-bogor.ac.id' : null;
 
         $cookie = cookie(
             'uika_sso_token',
@@ -205,7 +205,8 @@ class AuthController extends Controller
             $isProduction,
             true,
             false,
-            'Lax'
+            'None'
+            // 'Lax'
         );
 
         // 3. Return response menggunakan $userData yang sudah berbentuk array
