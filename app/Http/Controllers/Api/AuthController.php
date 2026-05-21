@@ -461,44 +461,67 @@ class AuthController extends Controller
         return Socialite::driver('google')->stateless()->redirect();
     }
 
-    public function handleGoogleCallback()
-    {
-        try {
-            $googleUser = Socialite::driver('google')->stateless()->user();
-            $user = User::where('email', $googleUser->email)->first();
+public function handleGoogleCallback(\Illuminate\Http\Request $request)
+{
+    try {
+        $googleUser = Socialite::driver('google')->stateless()->user();
+        $user = User::where('email', $googleUser->email)->first();
 
-            if (!$user) {
-                $pendingData = base64_encode(json_encode([
-                    'name' => $googleUser->name,
-                    'email' => $googleUser->email,
-                ]));
-                return redirect('http://localhost:5173/register?social_data=' . $pendingData);
-            }
+        $isProduction = config('app.env') === 'production';
+        $frontendUrl = $isProduction ? 'https://eportal.uika-bogor.ac.id/v2' : 'http://localhost:5173';
 
-            $token = FacadesJWTAuth::fromUser($user);
-
-            $isProduction = config('app.env') === 'production';
-            $cookieDomain = $isProduction ? '.uika.ac.id' : null;
-
-            $cookie = cookie(
-                'uika_sso_token',
-                $token,
-                1440,
-                '/',
-                $cookieDomain,
-                $isProduction,
-                true,
-                false,
-                'Lax'
-            );
-
-            // Tidak ada data di URL sama sekali
-            return redirect('http://localhost:5173/auth/google/success')
-                ->withCookie($cookie);
-        } catch (\Exception $e) {
-            return redirect('http://localhost:5173/login?error=GoogleLoginFailed');
+        if (!$user) {
+            $pendingData = base64_encode(json_encode([
+                'name' => $googleUser->name,
+                'email' => $googleUser->email,
+            ]));
+            return redirect($frontendUrl . '/register?social_data=' . $pendingData);
         }
+
+        // Bikin token
+        $token = FacadesJWTAuth::fromUser($user);
+
+        // Update waktu login terakhir
+        $user->update(['last_login_at' => now()]);
+
+        // Catat ke Activity Log (Bisa dibedain pesannya biar tahu ini dari Google)
+        $this->activityLog->log(
+            \App\Services\ActivityLogService::TYPE_LOGIN,
+            'Login ke E-Portal via Google SSO', 
+            userId: $user->id,
+            actorId: $user->id,
+            metadata: ['ip' => $request->ip(), 'browser' => $request->userAgent()],
+        );
+
+        // Catat ke Login Log (sukses)
+        $this->loginLogService->logSuccess($user->id, $request);
+        
+
+        // Bikin Cookie
+        $cookieDomain = $isProduction ? '.uika-bogor.ac.id' : null;
+
+        $cookie = cookie(
+            'uika_sso_token',
+            $token,
+            1440,
+            '/',
+            $cookieDomain,
+            $isProduction,
+            true,
+            false,
+            'None'
+        );
+
+        return redirect($frontendUrl . '/auth/google/success')
+            ->withCookie($cookie);
+            
+    } catch (\Exception $e) {
+        $isProduction = config('app.env') === 'production';
+        $frontendUrl = $isProduction ? 'https://eportal.uika-bogor.ac.id/v2' : 'http://localhost:5173';
+        
+        return redirect($frontendUrl . '/login?error=GoogleLoginFailed');
     }
+}
 
     // public function call_user(Request $request)
     // {
