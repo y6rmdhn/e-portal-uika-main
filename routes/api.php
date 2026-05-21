@@ -3,11 +3,12 @@
 use App\Http\Controllers\Api\LoginLogController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\DashboardController;
-use App\Http\Controllers\Api\AuthController; // <-- Tambahan: Import AuthController
+use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\AppModuleController;
 
 /*
 |--------------------------------------------------------------------------
@@ -52,12 +53,15 @@ Route::group(['middleware' => ['jwt.verify']], function () {
     Route::get('/get_user', 'Api\AuthController@get_user');
     Route::get('/refresh', 'Api\AuthController@refresh');
 
-    Route::get('/app_modul', 'Api\AppModuleController@index');
+    // Route::get('/app_modul', 'Api\AppModuleController@index');
     Route::get('/tx_user_modul_permission', 'Api\TxUserModulPermissionController@index');
     Route::get('/call_user', 'Api\AuthController@call_user');
 
     // Route SSO untuk redirect ke app (Butuh Auth)
     Route::get('/sso/redirect', [AuthController::class, 'redirect']);
+
+    // ROUTE USER (Semua user login bisa akses)
+    Route::get('/my-modules', [AppModuleController::class, 'forUser']);
 
     // profile
     Route::prefix('profile')->group(function () {
@@ -68,6 +72,16 @@ Route::group(['middleware' => ['jwt.verify']], function () {
 
     // Admin Routes
     Route::middleware(['role:admin'])->prefix('admins')->name('admins.')->group(function () {
+
+    //ROUTE ADMIN (Kelola App Module - URL: /api/admins/app-modules)
+        Route::prefix('app-modules')->group(function () {
+            Route::get('/',            [AppModuleController::class, 'index']);
+            Route::post('/',           [AppModuleController::class, 'store']);
+            Route::put('/{id}',        [AppModuleController::class, 'update']);
+            Route::delete('/{id}',     [AppModuleController::class, 'destroy']);
+        });
+
+
         Route::get('/',                     [UserController::class, 'index'])->name('index');
         Route::post('/',                    [UserController::class, 'store'])->name('store');
 
