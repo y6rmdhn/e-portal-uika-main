@@ -21,7 +21,7 @@ class CreateUsersTable extends Migration
             $table->string('nip')->nullable()->unique();
             $table->string('nidn')->nullable()->unique();
             $table->string('npm')->nullable()->unique();
-            // $table->foreignId('role_id')->constrained('roles')->onDelete('cascade');
+            $table->foreignId('role_id')->nullable()->constrained('roles')->onDelete('cascade');
             $table->boolean('is_active')->default(false);
             $table->string('password');
             $table->bigInteger('phone')->nullable();

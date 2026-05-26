@@ -18,11 +18,7 @@ class UserRepository implements UserRepositoryInterface
 
     public function getAllUsers(array $filters = [])
     {
-        $adminRoles = ['mahasiswa', 'admin', 'dosen'];
-
-        $query = $this->model
-            ->with(['roles'])
-            ->whereHas('roles', fn($q) => $q->whereIn('name', $adminRoles));
+        $query = $this->model->with(['roles']);
 
         // Filter by specific role
         if (!empty($filters['role'])) {

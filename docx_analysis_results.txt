@@ -1,0 +1,260 @@
+=== ANALYSIS OF DIALOGS, FIGURES, AND PLACEHOLDERS ===
+
+
+[Heading] Line 30 (Heading 1): LEMBAR PENGESAHAN
+
+[Heading] Line 46 (Heading 1): PERSETUJUAN PENGUJI
+
+[Heading] Line 62 (Heading 1): PRAKATA
+
+[Heading] Line 95 (Heading 1): ABSTRAK
+
+[Heading] Line 105 (Heading 1): DAFTAR ISI
+Line 112 (): DAFTAR GAMBAR	viii
+
+[Heading] Line 164 (Heading 1): DAFTAR GAMBAR
+Line 166 (): Gambar 2. 1 Metode Waterfall	19
+Line 167 (): Gambar 2. 2 Use Case Diagram	21
+Line 168 (): Gambar 2. 3 Activity Diagram	22
+Line 169 (): Gambar 2. 4 Class Diagram	22
+Line 170 (): Gambar 2. 5 Sequence Diagram	23
+Line 171 (): Gambar 2. 6 Component Diagram	23
+Line 172 (): Gambar 2. 7 Deployment Diagram	24
+Line 173 (): Gambar 3. 1 Metode Waterfall	29
+Line 174 (): Gambar 4. 1 Diagram Sistem yang Sedang Berjalan	33
+Line 175 (): Gambar 4. 2 Diagram Sistem yang Diusulkan	34
+Line 176 (): Gambar 4. 3 Arsitektur Sistem RESTful Client-Server E-Portal UIKA	38
+Line 177 (): Gambar 4. 4 Use Case Diagram Modul App Modules	40
+Line 178 (): Gambar 4. 5 Use Case Diagram Modul Roles (Manajemen Peran)	41
+Line 179 (): Gambar 4. 6 Use Case Diagram Modul Permissions (Manajemen Hak Akses)	42
+Line 180 (): Gambar 4. 7 Use Case Diagram Modul Hak Akses (Role-Permission Mapping)	43
+Line 181 (): Gambar 4. 8 Use Case Diagram Terintegrasi Sistem RBAC E-Portal UIKA	44
+Line 182 (): Gambar 4. 9 Activity Diagram Login dan Otorisasi	45
+Line 183 (): Gambar 4. 10 Activity Diagram Manajemen Role	46
+Line 184 (): Gambar 4. 11 Activity Diagram Manajemen Permission	47
+Line 185 (): Gambar 4. 12 Class Diagram Modul RBAC	48
+Line 186 (): Gambar 4. 13 Sequence Diagram Autentikasi dan Otorisasi	49
+Line 187 (): Gambar 4. 14 Component Diagram Arsitektur RBAC	50
+Line 188 (): Gambar 4. 15 Deployment Diagram Infrastruktur Sistem E-Portal UIKA	51
+Line 189 (): Gambar 4. 16 ERD Basis Data RBAC	52
+Line 190 (): Gambar 4. 17 Wireframe Halaman Manajemen Role	53
+Line 191 (): Gambar 4. 18 Wireframe Halaman Manajemen Permission	53
+
+[Heading] Line 193 (Heading 1): DAFTAR TABEL
+
+[Heading] Line 207 (Heading 1): BAB I
+
+[Heading] Line 208 (Heading 1): PENDAHULUAN
+
+[Heading] Line 210 (Heading 2): 1.1 Latar Belakang
+Line 212 (): Seiring dengan meningkatnya jumlah pengguna dan semakin beragamnya peran dalam lingkungan universitas, mulai dari mahasiswa, dosen, staf administrasi, hingga administrator sistem, pengelolaan hak akses menjadi tantangan yang semakin kompleks. Setiap jenis pengguna memiliki kebutuhan akses yang berbeda-beda terhadap fitur dan data yang tersedia di tiap modul aplikasi. Tanpa mekanisme pengelolaan hak akses yang terstruktur dan terpusat, terdapat risiko bahwa pengguna dapat mengakses fitur atau data yang seharusnya berada di luar kewenangannya, yang dapat berimplikasi pada keamanan data dan integritas sistem secara keseluruhan.
+Line 216 (): Berdasarkan uraian di atas, penelitian ini bertujuan untuk merancang dan membangun sistem otorisasi terpusat menggunakan Role-Based Access Control (RBAC) pada E-Portal Universitas Ibn Khaldun Bogor. Sistem yang dikembangkan diharapkan mampu menyelesaikan permasalahan pengelolaan hak akses yang belum terstruktur, meningkatkan keamanan sistem, dan mempermudah administrator dalam mengelola peran serta hak akses pengguna secara terpusat melalui antarmuka yang mudah digunakan.
+
+[Heading] Line 218 (Heading 2): 1.2 Rumusan Masalah
+Line 219 (): Berdasarkan latar belakang yang telah diuraikan, rumusan masalah dalam penelitian ini adalah:
+Line 222 (List Paragraph): Bagaimana tingkat fungsionalitas, kebergunaan (usability), dan performa sistem RBAC yang dikembangkan berdasarkan hasil pengujian Black Box Testing, System Usability Scale (SUS), dan Performance Testing?
+
+[Heading] Line 224 (Heading 2): 1.3 Tujuan Penelitian
+Line 225 (): Berdasarkan rumusan masalah yang telah ditetapkan, tujuan penelitian ini adalah:
+
+[Heading] Line 230 (Heading 2): 1.4 Batasan Masalah
+
+[Heading] Line 239 (Heading 2): 1.5 Manfaat Penelitian
+
+[Heading] Line 250 (Heading 2): 1.6 Sistematika Penulisan
+Line 251 (): Untuk memberikan gambaran yang menyeluruh mengenai penulisan skripsi ini, sistematika penulisan disusun sebagai berikut:
+
+[Heading] Line 258 (Heading 1): BAB II
+
+[Heading] Line 259 (Heading 1): TINJAUAN PUSTAKA
+
+[Heading] Line 261 (Heading 2): 2.1 Sistem Informasi Berbasis Website
+
+[Heading] Line 265 (Heading 2): 2.2 Role-Based Access Control (RBAC)
+Line 266 (): Role-Based Access Control (RBAC) adalah model kontrol akses yang mengatur hak akses pengguna berdasarkan peran (role) yang dimiliki, bukan berdasarkan identitas individu secara langsung. Sandhu et al. (1996) mendefinisikan RBAC sebagai kebijakan kontrol akses yang netral terhadap berbagai kebijakan keamanan yang ada dan cocok untuk berbagai domain aplikasi. Model ini distandarisasi oleh NIST dalam RBAC Reference Model yang mendefinisikan empat komponen inti: Users (pengguna), Roles (peran), Permissions (izin akses), dan Sessions (sesi aktif).
+
+[Heading] Line 270 (Heading 2): 2.3 Laravel
+
+[Heading] Line 273 (Heading 2): 2.4 Spatie Laravel Permission
+
+[Heading] Line 276 (Heading 2): 2.5 React JS
+
+[Heading] Line 279 (Heading 2): 2.6 REST API
+
+[Heading] Line 282 (Heading 2): 2.7 JSON Web Token (JWT)
+Line 283 (): JSON Web Token (JWT) adalah standar terbuka (RFC 7519) yang mendefinisikan cara kompak dan mandiri untuk mentransmisikan informasi secara aman antara pihak-pihak sebagai objek JSON yang ditandatangani secara digital. JWT terdiri dari tiga bagian yang dipisahkan oleh titik: Header (algoritma dan tipe token), Payload (klaim atau data yang dibawa token), dan Signature (tanda tangan digital untuk memverifikasi keaslian token). Dalam sistem E-Portal UIKA, library tymon/jwt-auth digunakan untuk mengimplementasikan autentikasi stateless berbasis JWT pada backend Laravel, memungkinkan validasi identitas dan role pengguna tanpa perlu menyimpan sesi di server.
+
+[Heading] Line 285 (Heading 2): 2.8 Black Box Testing
+Line 286 (): Black Box Testing adalah metode pengujian perangkat lunak yang memverifikasi fungsionalitas sistem berdasarkan spesifikasi kebutuhan tanpa memperhatikan struktur internal kode program. Penguji memperlakukan sistem sebagai “kotak hitam” dan hanya berfokus pada input yang diberikan serta output yang dihasilkan. Metode ini efektif untuk memverifikasi apakah sistem berperilaku sesuai dengan kebutuhan yang telah ditetapkan, mendeteksi fitur yang hilang atau tidak berfungsi dengan benar, serta menguji antarmuka API dari perspektif pengguna eksternal. Pada penelitian ini, Black Box Testing digunakan untuk memvalidasi 18 skenario fungsional pada endpoint REST API modul RBAC E-Portal UIKA.
+
+[Heading] Line 288 (Heading 2): 2.9 Metode Waterfall
+Line 290 (): Keunggulan model Waterfall adalah kemudahan pengelolaan proyek karena setiap fase memiliki deliverable yang jelas, dokumentasi yang komprehensif di setiap tahap, dan kesesuaian untuk proyek dengan kebutuhan yang sudah terdefinisi dengan baik sejak awal. Dalam penelitian ini, model Waterfall dipilih karena kebutuhan sistem RBAC pada E-Portal UIKA telah terdefinisi dengan jelas berdasarkan analisis permasalahan yang ada.
+Line 292 (): [Gambar 2. 1 Metode Waterfall]
+Line 293 (): Gambar 2. 1 Metode Waterfall
+
+[Heading] Line 295 (Heading 2): 2.10 Unified Modeling Language (UML)
+Line 296 (): Unified Modeling Language (UML) adalah bahasa pemodelan standar yang digunakan untuk menvisualisasikan, menspesifikasikan, mengkonstruksi, dan mendokumentasikan artefak dari sistem perangkat lunak. UML menyediakan berbagai jenis diagram yang merepresentasikan aspek-aspek yang berbeda dari sistem. Haviluddin (2011) menjelaskan bahwa UML merupakan suatu metode pemodelan secara visual sebagai sarana perancangan sistem berorientasi objek. Diagram UML yang digunakan dalam penelitian ini meliputi:
+
+[Heading] Line 297 (Heading 3): 2.10.1 Use Case Diagram
+Line 298 (): Use Case Diagram menggambarkan fungsionalitas sistem dari perspektif pengguna dengan menunjukkan aktor-aktor yang berinteraksi dengan sistem dan use case yang tersedia. Diagram ini berfungsi sebagai alat komunikasi antara analis, pengembang, dan pengguna dalam mendefinisikan kebutuhan fungsional sistem.
+Line 300 (): [Gambar 2. 2 Use Case Diagram]
+Line 301 (): Gambar 2. 2 Use Case Diagram
+
+[Heading] Line 302 (Heading 3): 2.10.2 Activity Diagram
+Line 303 (): Activity Diagram menggambarkan alur kerja atau proses bisnis sistem secara berurutan. Diagram ini mirip dengan flowchart namun lebih ekspresif dalam merepresentasikan aktivitas paralel, percabangan kondisi, dan alur kontrol yang kompleks. Activity Diagram sangat berguna untuk memodelkan alur proses autentikasi, otorisasi, dan manajemen role dalam konteks RBAC.
+Line 305 (): [Gambar 2. 3 Activity Diagram]
+Line 306 (): Gambar 2. 3 Activity Diagram
+
+[Heading] Line 307 (Heading 3): 2.10.3 Class Diagram
+Line 308 (): Class Diagram mendefinisikan struktur statis sistem dengan menggambarkan kelas-kelas yang ada, atributnya, metode-metodenya, serta hubungan relasional antar kelas seperti asosiasi, agregasi, komposisi, dan pewarisan. Dalam konteks RBAC, Class Diagram merepresentasikan hubungan antara kelas User, Role, Permission, dan AppModule.
+Line 310 (): [Gambar 2. 4 Class Diagram]
+Line 311 (): Gambar 2. 4 Class Diagram
+
+[Heading] Line 312 (Heading 3): 2.10.4 Sequence Diagram
+Line 313 (): Sequence Diagram menggambarkan interaksi antar objek dalam sistem berdasarkan urutan waktu. Diagram ini menunjukkan pesan (messages) yang dikirimkan dan diterima oleh objek-objek dalam suatu skenario tertentu. Sequence Diagram sangat berguna untuk memodelkan alur autentikasi JWT dan proses otorisasi RBAC yang melibatkan interaksi antara client, middleware, controller, dan model.
+Line 315 (): [Gambar 2. 5 Sequence Diagram]
+Line 316 (): Gambar 2. 5 Sequence Diagram
+
+[Heading] Line 317 (Heading 3): 2.10.5 Component Diagram
+Line 318 (): Component Diagram menunjukkan organisasi komponen perangkat lunak dalam sistem dan ketergantungan antar komponen tersebut pada tingkat arsitektural. Diagram ini berguna untuk menvisualisasikan arsitektur deployment sistem yang terdiri dari komponen frontend React JS, backend Laravel, dan database MySQL.
+Line 320 (): [Gambar 2. 6 Component Diagram]
+Line 321 (): Gambar 2. 6 Component Diagram
+
+[Heading] Line 322 (Heading 3): 2.10.6 Deployment Diagram
+Line 323 (): Deployment Diagram memvisualisasikan konfigurasi perangkat keras fisik (nodes) yang digunakan untuk menjalankan perangkat lunak serta penempatan artefak aplikasi di tiap node. Diagram ini penting untuk merencanakan dan mendokumentasikan infrastruktur deployment sistem E-Portal UIKA.
+Line 325 (): [Gambar 2. 7 Deployment Diagram]
+Line 326 (): Gambar 2. 7 Deployment Diagram
+
+[Heading] Line 328 (Heading 2): 2.11 MySQL
+
+[Heading] Line 331 (Heading 2): 2.12 Visual Studio Code
+
+[Heading] Line 334 (Heading 2): 2.13 Postman
+
+[Heading] Line 337 (Heading 2): 2.14 Draw.io
+Line 338 (): Draw.io (diagrams.net) adalah aplikasi pembuatan diagram berbasis web yang mendukung berbagai jenis diagram termasuk diagram UML, flowchart, ERD, dan diagram arsitektur sistem. Dalam penelitian ini, Draw.io digunakan untuk membuat seluruh diagram UML yang mendokumentasikan perancangan sistem RBAC E-Portal UIKA, termasuk Use Case Diagram, Activity Diagram, Class Diagram, Sequence Diagram, Component Diagram, Deployment Diagram, dan Entity Relationship Diagram.
+
+[Heading] Line 340 (Heading 1): BAB III
+
+[Heading] Line 341 (Heading 1): METODOLOGI PENELITIAN
+
+[Heading] Line 343 (Heading 2): 3.1 Waktu dan Tempat
+
+[Heading] Line 346 (Heading 2): 3.2 Alat dan Bahan
+Line 347 (): Penelitian ini menggunakan berbagai perangkat keras, perangkat lunak, dan bahan pendukung yang telah diidentifikasi berdasarkan kebutuhan teknis pengembangan sistem RBAC E-Portal UIKA.
+
+[Heading] Line 348 (Heading 3): 3.2.1 Alat
+
+[Heading] Line 352 (Heading 3): 3.2.2 Bahan
+
+[Heading] Line 356 (Heading 2): 3.3 Metode Penelitian
+Line 357 (): Metode pengembangan yang digunakan dalam penelitian ini adalah model Waterfall dalam kerangka System Development Life Cycle (SDLC). Model Waterfall dipilih karena kebutuhan sistem RBAC pada E-Portal UIKA telah terdefinisi dengan jelas, sehingga alur pengembangan yang sekuensial dan terstruktur dapat diikuti dengan baik. Setiap tahapan menghasilkan deliverable yang menjadi input bagi tahapan berikutnya.
+Line 359 (): [Gambar 3. 1 Metode Waterfall]
+Line 360 (): Gambar 3. 1 Metode Waterfall
+
+[Heading] Line 362 (Heading 3): 3.3.1 Requirement (Analisis Kebutuhan)
+Line 363 (): Pada tahap ini dilakukan identifikasi dan pendefinisian kebutuhan sistem RBAC E-Portal UIKA secara komprehensif. Kegiatan yang dilakukan meliputi: analisis permasalahan pengelolaan hak akses yang ada, identifikasi aktor-aktor yang akan menggunakan sistem (administrator, dosen, mahasiswa, staf), pendefinisian kebutuhan fungsional (CRUD role, permission, user, AppModule; pemetaan role-permission; validasi middleware JWT dan role:admin), pendefinisian kebutuhan non-fungsional (keamanan, performa, integritas data, interoperabilitas), dan pemodelan kebutuhan menggunakan diagram UML (Use Case Diagram).
+
+[Heading] Line 365 (Heading 3): 3.3.2 Design (Perancangan)
+Line 366 (): Berdasarkan hasil analisis kebutuhan, tahap ini menghasilkan cetak biru (blueprint) sistem yang mencakup: perancangan arsitektur sistem RESTful Client-Server (frontend React JS dan backend Laravel), perancangan skema basis data (ERD) dengan tabel-tabel RBAC berbasis AppModule, perancangan endpoint API beserta middleware stack (jwt.verify, role:admin), pemodelan UML lengkap (Activity Diagram, Class Diagram, Sequence Diagram, Component Diagram, Deployment Diagram), dan perancangan antarmuka pengguna (wireframe) untuk halaman manajemen RBAC.
+
+[Heading] Line 368 (Heading 3): 3.3.3 Implementation (Implementasi)
+
+[Heading] Line 371 (Heading 3): 3.3.4 Verification / Testing (Pengujian)
+
+[Heading] Line 374 (Heading 3): 3.3.5 Deployment
+
+[Heading] Line 377 (Heading 1): BAB IV
+
+[Heading] Line 378 (Heading 1): HASIL DAN PEMBAHASAN
+
+[Heading] Line 380 (Heading 2): 4.1 Requirement (Analisis Kebutuhan)
+Line 382 (): Berdasarkan analisis permasalahan yang telah dilakukan, sistem E-Portal UIKA yang berjalan saat ini belum memiliki mekanisme pengelolaan hak akses yang terpusat dan granular. Penugasan hak akses masih dilakukan secara hardcoded atau ad-hoc pada masing-masing modul, sehingga tidak terdapat konsistensi dan traceability yang jelas. Diagram kondisi sistem yang sedang berjalan disajikan pada Gambar 4.1 di bawah ini.
+Line 385 (): Gambar 4. 1 Diagram Sistem yang Sedang Berjalan
+Line 387 (): Berdasarkan identifikasi permasalahan tersebut, diusulkan sistem RBAC terpusat berbasis AppModule yang memungkinkan pengelolaan role, permission, dan penugasan hak akses secara dinamis melalui REST API yang terproteksi JWT. Diagram sistem yang diusulkan disajikan pada Gambar 4.2.
+Line 390 (): Gambar 4. 2 Diagram Sistem yang Diusulkan
+
+[Heading] Line 392 (Heading 3): 4.1.1 Analisis Kebutuhan Fungsional
+Line 393 (): Analisis kebutuhan fungsional mendefinisikan ragam layanan yang harus direkayasa pada modul RBAC untuk mengelola hak akses pengguna. Berdasarkan kebutuhan implementasi RBAC pada sistem E-Portal UIKA, fungsionalitas yang dikembangkan disajikan pada Tabel 4.1.
+
+[Heading] Line 396 (Heading 3): 4.1.2 Analisis Kebutuhan Non-Fungsional
+Line 400 (): Berdasarkan hasil analisis kebutuhan, sistem E-Portal UIKA mendefinisikan role institusional dan permission yang berbasis AppModule. Daftar role disajikan pada Tabel 4.3, daftar permission pada Tabel 4.4, dan pemetaan role ke permission pada Tabel 4.5.
+
+[Heading] Line 407 (Heading 2): 4.2 Design (Perancangan Sistem)
+Line 408 (): Berdasarkan tahap Design pada metodologi Waterfall, perancangan sistem dilakukan dengan pemodelan Unified Modeling Language (UML) dan antarmuka pengguna. Perancangan ini menjadi cetak biru (blueprint) dalam proses pengkodean yang memastikan implementasi yang konsisten dengan kebutuhan yang telah dianalisis.
+
+[Heading] Line 410 (Heading 3): 4.2.1 Perancangan Arsitektur Sistem
+Line 414 (): Gambar 4. 3 Arsitektur Sistem RESTful Client-Server E-Portal UIKA
+
+[Heading] Line 416 (Heading 3): 4.2.2 Pemodelan UML
+Line 417 (): Pemodelan sistem dilakukan menggunakan Unified Modeling Language (UML) untuk memberikan blueprint yang jelas bagi tahap implementasi. Diagram yang dibuat meliputi Use Case Diagram, Activity Diagram, Class Diagram, Sequence Diagram, Component Diagram, Deployment Diagram, dan Entity Relationship Diagram (ERD) basis data.
+Line 419 (): a.  Use Case Diagram
+Line 420 (): Use Case Diagram menggambarkan fungsionalitas sistem dari perspektif pengguna. Pada sistem RBAC E-Portal UIKA, terdapat dua aktor utama yaitu Administrator yang bertanggung jawab mengelola seluruh konfigurasi RBAC (CRUD role, CRUD permission berbasis AppModule, pemetaan role-permission, dan manajemen pengguna), serta Pengguna Biasa (Dosen, Mahasiswa, Staff) yang melakukan login dan mengakses sistem sesuai dengan role yang dimiliki. Pemodelan use case dilakukan secara modular untuk setiap modul RBAC agar lebih terperinci dan mudah dipahami, kemudian diintegrasikan dalam satu diagram terpadu.
+Line 422 (): Modul App Modules digunakan oleh Administrator untuk mengelola entitas sub-aplikasi yang terintegrasi di dalam universitas. Use case pada modul ini mencakup empat fungsi utama: Melihat Daftar Modul, Menambah Modul Baru (Create), Memperbarui Modul (Update), dan Menghapus Modul (Delete). Penghapusan modul akan memicu cascade delete otomatis pada data permission yang terkait. Use case diagram Modul App Modules disajikan pada Gambar 4.4.
+Line 425 (): Gambar 4. 4 Use Case Diagram Modul App Modules
+Line 428 (): Modul Roles mengelola data Peran (Roles) fungsional yang berlaku dalam sistem E-Portal UIKA. Use case pada modul ini mencakup: Melihat Daftar Peran, Menambah Peran Baru (Create), Memperbarui Peran (Update), Menghapus Peran (Delete), dan Menugaskan Role Global ke User. Use case diagram Modul Roles disajikan pada Gambar 4.5.
+Line 431 (): Gambar 4. 5 Use Case Diagram Modul Roles (Manajemen Peran)
+Line 434 (): Modul Permissions mengelola hak akses granular yang diikat ke modul aplikasi tertentu. Use case pada modul ini mencakup: Melihat Daftar Hak Akses, Menambah Hak Akses Baru (wajib memilih AppModule sebagai relasi «include»), Memperbarui Hak Akses, Menghapus Hak Akses, dan Bulk Operations Permission (bulk store/update/delete). Use case diagram Modul Permissions disajikan pada Gambar 4.6.
+Line 437 (): Gambar 4. 6 Use Case Diagram Modul Permissions (Manajemen Hak Akses)
+Line 440 (): Modul Hak Akses berfungsi memetakan hak akses (permissions) ke suatu peran (role) secara kontekstual menggunakan antarmuka dual-list. Use case pada modul ini mencakup: Pilih Role Pengguna (sebagai relasi «include» dari use case lainnya), Melihat Matriks Pemetaan, Assign/Unassign Permission ke Role, dan Sinkronisasi Massal Permission. Use case diagram Modul Hak Akses disajikan pada Gambar 4.7.
+Line 443 (): Gambar 4. 7 Use Case Diagram Modul Hak Akses (Role-Permission Mapping)
+Line 445 (): 5)  Diagram Use Case Terintegrasi
+Line 446 (): Diagram use case terintegrasi menyajikan gambaran arsitektur sistem RBAC E-Portal UIKA secara holistik. Diagram ini menggabungkan seluruh use case dari keempat modul di atas dalam satu tampilan, menunjukkan interaksi kedua aktor utama (Administrator dan Pengguna Biasa) dengan seluruh fungsi sistem. Diagram terintegrasi disajikan pada Gambar 4.8.
+Line 449 (): Gambar 4. 8 Use Case Diagram Terintegrasi Sistem RBAC E-Portal UIKA
+Line 451 (): b.  Activity Diagram
+Line 452 (): Activity Diagram menggambarkan alur aktivitas proses-proses kritis dalam sistem RBAC, meliputi proses login dan otorisasi JWT, proses manajemen role oleh administrator, dan proses manajemen permission berbasis AppModule. Diagram ini membantu dalam memahami alur logika bisnis dan kondisi-kondisi percabangan dalam setiap proses.
+Line 455 (): Gambar 4. 9 Activity Diagram Login dan Otorisasi
+Line 458 (): Gambar 4. 10 Activity Diagram Manajemen Role
+Line 461 (): Gambar 4. 11 Activity Diagram Manajemen Permission
+Line 463 (): c.  Class Diagram
+Line 464 (): Class Diagram memodelkan struktur statis sistem dengan mendefinisikan kelas-kelas utama, atribut, metode, serta hubungan relasional antar kelas. Kelas-kelas utama yang dimodelkan meliputi User, Role, Permission, AppModule, TxUserModulPermission, dan kelas-kelas controller (RoleController, PermissionController, RoleHasPermissionController, UserController, AppModuleController). Class Diagram modul RBAC disajikan pada Gambar 4.12.
+Line 467 (): Gambar 4. 12 Class Diagram Modul RBAC
+Line 469 (): d.  Sequence Diagram
+Line 470 (): Sequence Diagram menggambarkan alur interaksi antar objek atau komponen sistem berdasarkan urutan waktu untuk skenario autentikasi JWT dan otorisasi RBAC. Diagram ini memodelkan pesan yang dikirim dan diterima antara Client, Middleware (jwt.verify, role:admin), Controller, Service (Spatie), dan Database selama proses permintaan akses berlangsung. Sequence Diagram disajikan pada Gambar 4.13.
+Line 473 (): Gambar 4. 13 Sequence Diagram Autentikasi dan Otorisasi
+Line 475 (): e.  Component Diagram
+Line 476 (): Component Diagram menunjukkan organisasi komponen perangkat lunak dalam sistem dan ketergantungan antar komponen tersebut pada tingkat arsitektural. Diagram ini memperlihatkan relasi antara komponen Frontend React JS (AuthContext, ProtectedRoute, RoleManager, PermissionManager, UserManager), Backend Laravel (Routing, Middleware, Controllers, Models, Spatie Permission), dan Database MySQL. Diagram disajikan pada Gambar 4.14.
+Line 479 (): Gambar 4. 14 Component Diagram Arsitektur RBAC
+Line 481 (): f.  Deployment Diagram
+Line 482 (): Deployment Diagram memvisualisasikan konfigurasi perangkat keras (nodes) yang digunakan untuk menjalankan perangkat lunak serta penempatan artefak aplikasi di tiap node. Diagram ini menggambarkan konfigurasi deployment lokal dengan dua node: Client Node (menjalankan browser dengan React JS App) dan Server Node (menjalankan PHP Laravel App dan MySQL Database). Diagram disajikan pada Gambar 4.15.
+Line 485 (): Gambar 4. 15 Deployment Diagram Infrastruktur Sistem E-Portal UIKA
+Line 487 (): g.  Entity Relationship Diagram (ERD)
+Line 488 (): Entity Relationship Diagram (ERD) merancang skema basis data relasional RBAC dengan tabel-tabel inti dan relasi antar entitas. Skema database terdiri dari tabel users (data pengguna dengan kolom public_id sebagai UUID), roles (nama peran), permissions (nama permission dengan kolom appModule_id sebagai kustomisasi Spatie), app_module (definisi modul aplikasi), role_has_permissions (tabel pivot relasi role-permission), model_has_roles (tabel pivot relasi user-role), dan tx_user_module_permission (tabel transaksi konteks spesifik user-modul-role-permission). ERD disajikan pada Gambar 4.16.
+Line 491 (): Gambar 4. 16 ERD Basis Data RBAC
+
+[Heading] Line 493 (Heading 3): 4.2.3 Perancangan Antarmuka Pengguna
+Line 495 (): Halaman Login dirancang dengan form sederhana yang meminta email dan password pengguna. Setelah autentikasi berhasil, token JWT disimpan di localStorage frontend dan pengguna diarahkan ke dashboard sesuai dengan perannya. Halaman Dashboard Admin menampilkan ringkasan informasi sistem termasuk jumlah pengguna aktif, daftar role yang terdaftar, modul aplikasi yang tersedia, dan statistik penggunaan sistem. Halaman Manajemen Role (RoleManager) menampilkan tabel daftar role beserta tombol untuk membuat role baru, mengedit nama role, menghapus role, dan mengelola pemetaan permission ke role. Halaman Pemetaan Role-Permission menggunakan pola antarmuka Dual-Listbox (dua kolom): kolom kiri menampilkan permission “Belum Ditugaskan” dan kolom kanan menampilkan permission “Sudah Ditugaskan”, di mana hak akses pada kedua kolom dikelompokkan secara visual berdasarkan AppModule. Tersedia input pencarian real-time independen di setiap kolom untuk menyaring permission secara instan, serta tombol “Berikan Akses” dan “Cabut Akses” untuk operasi assign dan unassign massal lintas modul. Halaman Manajemen Permission (PermissionManager) menampilkan daftar permission yang dikelompokkan berdasarkan AppModule dengan dukungan operasi bulk create dan bulk delete. Halaman Manajemen Pengguna (UserManager) menampilkan tabel pengguna dengan fitur Status Toggle, Reset Password, Ekspor/Impor Excel, dan Audit Log per pengguna. Seluruh antarmuka menerapkan responsive layout, micro-animations pada transisi modal dan perpindahan item, serta toast notifications untuk feedback operasi sukses maupun gagal.
+Line 497 (): [Gambar 4. 17 Wireframe Halaman Manajemen Role]
+Line 498 (): Gambar 4. 17 Wireframe Halaman Manajemen Role
+Line 500 (): [Gambar 4. 18 Wireframe Halaman Manajemen Permission]
+Line 501 (): Gambar 4. 18 Wireframe Halaman Manajemen Permission
+
+[Heading] Line 503 (Heading 2): 4.3 Implementation (Implementasi Sistem)
+
+[Heading] Line 506 (Heading 3): 4.3.1 Struktur Implementasi Modul RBAC
+
+[Heading] Line 510 (Heading 3): 4.3.2 Implementasi Mekanisme Otorisasi RBAC dan Autentikasi JWT
+Line 511 (): Pada sisi backend Laravel, autentikasi dikelola menggunakan token JWT melalui library tymon/jwt-auth. Setiap request ke endpoint yang dilindungi divalidasi oleh middleware jwt.verify yang membaca header Authorization: Bearer <token>. Jika token tidak valid atau kadaluwarsa, middleware mengembalikan respons HTTP 401 Unauthorized. Untuk endpoint manajemen RBAC, terdapat lapisan otorisasi tambahan melalui middleware role:admin dari Spatie yang memeriksa apakah pengguna memiliki role admin atau super-admin; jika tidak, dikembalikan respons HTTP 403 Forbidden.
+
+[Heading] Line 520 (Heading 3): 4.3.3 Implementasi Halaman Dashboard dan Manajemen RBAC
+Line 523 (): Halaman manajemen role (RoleManager.tsx), permission (PermissionManager.tsx), dan user (UserManager.tsx) berkomunikasi dengan backend melalui HTTP client Axios yang dikonfigurasi dengan interceptor untuk menyertakan header Authorization: Bearer <token> secara otomatis pada setiap request. Komponen pemetaan role-permission mengimplementasikan antarmuka Dual-Listbox dengan dua kolom yang saling berinteraksi: permission dikelompokkan secara visual berdasarkan AppModule dalam bentuk kartu yang dapat diperluas, dilengkapi input pencarian real-time independen di masing-masing kolom. Seluruh komponen menerapkan micro-animations (transisi halus saat membuka modal dialog, indikator spinner saat loading data, animasi perpindahan item hak akses antar kolom) dan toast notifications yang muncul secara instan untuk setiap operasi sukses maupun gagal, memberikan feedback yang responsif kepada administrator.
+
+[Heading] Line 525 (Heading 2): 4.4 Verification (Pengujian Sistem)
+Line 526 (): Berdasarkan tahap Verification/Testing pada metodologi Waterfall, pengujian dilakukan untuk memastikan seluruh fungsionalitas modul RBAC berjalan sesuai spesifikasi kebutuhan yang telah ditetapkan pada Sub-bab 4.1. Pengujian dilakukan melalui tiga metode: Black Box Testing untuk validasi fungsionalitas endpoint, Usability Testing menggunakan kuesioner SUS untuk menilai antarmuka, dan Performance Testing untuk mengukur waktu respons API.
+
+[Heading] Line 528 (Heading 3): 4.4.1 Black Box Testing
+Line 532 (): Berdasarkan hasil Black Box Testing, seluruh 18 skenario pengujian menunjukkan hasil yang sesuai dengan yang diharapkan (100% Lulus). Skenario-skenario kritis yang paling signifikan adalah pengujian middleware autentikasi JWT (Skenario 3) yang berhasil mengembalikan status 401 untuk request tanpa token, dan pengujian middleware otorisasi role:admin (Skenario 4) yang berhasil mengembalikan status 403 untuk pengguna tanpa role admin. Pengujian operasi sync permission (Skenario 11) membuktikan bahwa mekanisme sinkronisasi atomik berjalan dengan benar: permission lama otomatis dihapus dan permission baru terdaftar dalam satu operasi.
+
+[Heading] Line 534 (Heading 3): 4.4.2 Usability Testing
+Line 535 (): Pengujian usability dilakukan terhadap 10 responden staff administrator sistem E-Portal UIKA Bogor menggunakan kuesioner System Usability Scale (SUS). SUS terdiri dari 10 pernyataan dengan skala Likert 1-5 yang menghasilkan skor antara 0 hingga 100. Responden diminta menggunakan antarmuka manajemen RBAC untuk melakukan tugas pengelolaan (CRUD role, CRUD permission berbasis AppModule, pemetaan role-permission, dan penugasan role ke pengguna), kemudian mengisi kuesioner SUS. Hasil pengujian disajikan pada Tabel 4.8.
+Line 538 (): Berdasarkan rekapitulasi data dari 10 responden, total rata-rata skor kontribusi seluruh 10 pernyataan SUS adalah 32,6. Skor SUS akhir dihitung sebagai 32,6 × 2,5 = 81,5. Nilai ini termasuk dalam kategori Excellent berdasarkan skala interpretasi Bangor et al. (2009), yang berarti antarmuka manajemen RBAC E-Portal UIKA memiliki tingkat kebergunaan (usability) yang sangat baik dan mudah dioperasikan oleh administrator tanpa memerlukan pelatihan khusus. Skor tertinggi diperoleh pada pernyataan P3 (Saya rasa antarmuka manajemen RBAC mudah digunakan) dengan rata-rata 4,3, menunjukkan bahwa desain antarmuka yang disederhanakan berhasil memenuhi ekspektasi pengguna.
+
+[Heading] Line 540 (Heading 3): 4.4.3 Performance Testing
+
+[Heading] Line 546 (Heading 2): 4.5 Deployment
+Line 547 (): Berdasarkan tahap Deployment pada metodologi Waterfall yang telah diuraikan pada Sub-bab 3.3.5, setelah sistem dinyatakan layak melalui seluruh tahap pengujian pada Sub-bab 4.4, modul RBAC E-Portal UIKA dideploy pada lingkungan pengembangan lokal (local deployment) untuk dioperasikan dalam ekosistem universitas.
+
+[Heading] Line 551 (Heading 2): 4.6 Pembahasan
+Line 552 (): Berdasarkan hasil implementasi dan pengujian yang telah dilakukan mengikuti seluruh tahapan metodologi Waterfall, pengembangan modul RBAC berbasis AppModule pada sistem E-Portal UIKA berhasil memenuhi seluruh kebutuhan fungsional dan non-fungsional yang ditetapkan pada Sub-bab 4.1.
+Line 555 (): Dari sisi performa, seluruh skenario pengujian memenuhi target waktu respons spesifik yang ditetapkan dalam PRD: autentikasi token tepat pada batas target < 150 ms, query daftar pengguna 90 ms di bawah target < 100 ms, sinkronisasi permission 210 ms di bawah target < 250 ms, dan validasi middleware hanya 15 ms yang jauh di bawah target < 150 ms. Hasil ini membuktikan bahwa overhead mekanisme autentikasi JWT dan otorisasi RBAC tidak berdampak signifikan terhadap pengalaman pengguna dalam menggunakan sistem.
+Line 556 (): Terdapat beberapa keterbatasan dalam penelitian ini yang perlu dicatat. Pertama, pengujian dilakukan terbatas pada lingkungan lokal (localhost) dan belum divalidasi pada server cloud produksi dengan kondisi beban nyata. Kedua, sinkronisasi data pengguna lintas sub-aplikasi masih bergantung pada REST API terpusat dan belum diuji untuk skalabilitas beban request yang sangat tinggi secara bersamaan. Ketiga, fitur audit trail mendalam untuk pencatatan riwayat perubahan hak akses (siapa, kapan, dan apa yang diubah) belum diimplementasikan secara penuh dalam lingkup penelitian ini, namun diidentifikasi sebagai pengembangan lanjutan yang penting.

@@ -187,10 +187,12 @@ class AuthController extends Controller
 
         // 1. Ambil nama role menggunakan fitur bawaan Spatie
         $roleName = $user->getRoleNames()->first();
+        $role = $user->roles()->first();
 
         // 2. Ubah object model menjadi array dan sisipkan role secara manual
         $userData = $user->makeHidden('roles')->toArray();
         $userData['role'] = $roleName;
+        $userData['role_id'] = $role ? $role->id : null;
 
         // Set environment untuk cookie
         $isProduction = config('app.env') === 'production';
@@ -205,14 +207,13 @@ class AuthController extends Controller
             $isProduction,
             true,
             false,
-            'None'
-            // 'Lax'
+            $isProduction ? 'None' : 'Lax'
         );
 
         // 3. Return response menggunakan $userData yang sudah berbentuk array
         return ResponseBuilder::success(200, "Login successful", [
             'user' => $userData,
-            'token_portal' => $token
+            'uika_sso_token' => $token
         ])->withCookie($cookie);
     }
 
@@ -266,7 +267,7 @@ class AuthController extends Controller
             $user = JWTAuth::user();
             return ResponseBuilder::success(200, "success", [
                 'user' => $data['data'],
-                'token_portal' => $token,
+                'uika_sso_token' => $token,
             ]);
         } else {
             return response()->json($data, 200);
@@ -329,13 +330,61 @@ class AuthController extends Controller
             $user = FacadesJWTAuth::user();
 
             $roleName = $user->getRoleNames()->first();
+            $role = $user->roles()->first();
 
             $userData = $user->makeHidden('roles')->toArray();
             $userData['role'] = $roleName;
+            $userData['role_id'] = $role ? $role->id : null;
 
             if (!empty($userData['image']) && !filter_var($userData['image'], FILTER_VALIDATE_URL)) {
                 $userData['image'] = asset('storage/' . $userData['image']);
             }
+
+            // Ambil semua permission user (jika admin/super-admin, ambil semua permission di system)
+            if ($user->hasAnyRole(['admin', 'super-admin'])) {
+                $allPermissions = \App\Models\Permission::all();
+            } else {
+                $allPermissions = $user->getAllPermissions();
+            }
+
+            // Buat list nama permission flat
+            $permissionsList = $allPermissions->pluck('name')->toArray();
+
+            // Group permission berdasarkan appModule_id
+            $permissionsByModule = [];
+            foreach ($allPermissions as $permission) {
+                if ($permission->appModule_id) {
+                    $permissionsByModule[$permission->appModule_id][] = $permission->name;
+                }
+            }
+
+            // Filter jika ada appModule_id di query parameter
+            $appModuleId = $request->query('appModule_id');
+            $modulePermissions = [];
+            if ($appModuleId) {
+                $modulePermissions = isset($permissionsByModule[$appModuleId]) ? $permissionsByModule[$appModuleId] : [];
+            }
+
+            // ── Accessible Modules ────────────────────────────────────────────
+            // Array modul lengkap yang dapat diakses user (id, name, url, permissions).
+            // Digunakan frontend E-Portal untuk tampilkan daftar app, dan sub-aplikasi
+            // untuk validasi hak akses tanpa query tambahan.
+            $accessibleModuleIds = array_keys($permissionsByModule);
+            $accessibleModulesData = \App\Models\AppModule::whereIn('id', $accessibleModuleIds)
+                ->orderBy('name')
+                ->get()
+                ->map(fn($mod) => [
+                    'id'          => $mod->id,
+                    'name'        => $mod->name,
+                    'url'         => $mod->url,
+                    'permissions' => $permissionsByModule[$mod->id] ?? [],
+                ])
+                ->values();
+
+            $userData['permissions'] = $permissionsList;
+            $userData['permissions_by_module'] = $permissionsByModule;
+            $userData['module_permissions'] = $modulePermissions;
+            $userData['accessible_modules'] = $accessibleModulesData;
 
             return response()->json([
                 'status' => 200,
@@ -605,8 +654,8 @@ class AuthController extends Controller
     public function redirect(Request $request)
     {
         try {
-            // Baca token dari HttpOnly cookie (server bisa baca, JS tidak bisa)
-            $token = $request->cookie('uika_sso_token');
+            // Baca token dari HttpOnly cookie, fallback ke bearer token jika cookie kosong (misal di local dev HTTP cross-site)
+            $token = $request->cookie('uika_sso_token') ?: $request->bearerToken();
 
             if (!$token) {
                 return response()->json([
@@ -615,13 +664,12 @@ class AuthController extends Controller
                 ], 401);
             }
 
-            // Validasi token masih valid
-            FacadesJWTAuth::setToken($token)->authenticate();
+            // Validasi token masih valid dan dapatkan user object
+            $user = FacadesJWTAuth::setToken($token)->authenticate();
 
             $targetUrl    = $request->query('target_url');
             $role_id      = $request->query('role_id');
             $appModule_id = $request->query('appModule_id');
-            $unit_id      = $request->query('unit_id', '1');
 
             if (!$targetUrl || !$role_id || !$appModule_id) {
                 return response()->json([
@@ -630,12 +678,28 @@ class AuthController extends Controller
                 ], 400);
             }
 
-            // Redirect ke SIAKAD dengan token di URL (short-lived, 1x pakai lebih ideal)
+            // Get role model details for metadata
+            $roleModel = \App\Models\Role::find($role_id);
+
+            // Calculate the permissions for this user, module, and role context
+            $permissions = $this->getPermissionsForContext($user, $appModule_id, $role_id);
+
+            // Generate a scoped token for the sub-app containing the contextual permissions
+            $scopedToken = FacadesJWTAuth::claims([
+                'id'           => $user->public_id,
+                'email'        => $user->email,
+                'appModule_id' => (int) $appModule_id,
+                'role_id'      => (int) $role_id,
+                'role_name'    => $roleModel?->name,
+                'permissions'  => $permissions,
+                'is_scoped'    => true, // flag to identify scoped token
+            ])->fromUser($user);
+
+            // Redirect ke aplikasi tujuan dengan scoped token di URL
             $redirectUrl = $targetUrl . '?' . http_build_query([
-                'token'        => $token,
+                'token'        => $scopedToken,
                 'role_id'      => $role_id,
                 'appModule_id' => $appModule_id,
-                'unit_id'      => $unit_id,
             ]);
 
             return response()->json([
@@ -645,8 +709,30 @@ class AuthController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'status'  => 401,
-                'message' => 'Session invalid or expired.',
+                'message' => 'Session invalid or expired. Error: ' . $e->getMessage(),
             ], 401);
         }
     }
+
+    private function getPermissionsForContext($user, $appModuleId, $roleId): array
+    {
+        // If user is admin/super-admin globally, grant all permissions of the module
+        if ($user->hasAnyRole(['admin', 'super-admin'])) {
+            return \App\Models\Permission::where('appModule_id', $appModuleId)
+                ->pluck('name')
+                ->toArray();
+        }
+
+        // 1. Get permissions assigned to the role
+        $rolePermissionIds = \App\Models\RoleHasPermission::where('role_id', $roleId)
+            ->pluck('permission_id')
+            ->toArray();
+
+        // 2. Fetch names of permissions that belong to this appModule_id
+        return \App\Models\Permission::whereIn('id', $rolePermissionIds)
+            ->where('appModule_id', $appModuleId)
+            ->pluck('name')
+            ->toArray();
+    }
 }
+

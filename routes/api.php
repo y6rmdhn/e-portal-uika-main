@@ -3,8 +3,14 @@
 use App\Http\Controllers\Api\LoginLogController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\DashboardController;
-use App\Http\Controllers\Api\AuthController; // <-- Tambahan: Import AuthController
+use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\AppModuleController;
+use App\Http\Controllers\Api\RoleController;
+use App\Http\Controllers\Api\PermissionController;
+use App\Http\Controllers\Api\RoleHasPermissionController;
+use App\Http\Controllers\Api\MyModuleController;
+use App\Http\Controllers\Api\SsoController;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -15,10 +21,32 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 */
 
+
+// ==========================================
+// SSO ROUTES — Khusus untuk Sub-Aplikasi
+// ==========================================
+
+// Public: tidak butuh token maupun client credentials
+// Digunakan developer sub-aplikasi untuk memahami kontrak SSO
+Route::get('/sso/capabilities', [SsoController::class, 'capabilities']);
+
+// Protected: butuh SSO Client Credentials (X-SSO-Client-ID + X-SSO-Client-Secret)
+// Endpoint utama sub-aplikasi — validasi token + dapatkan user & permissions
+Route::post('/sso/introspect', [SsoController::class, 'introspect'])
+    ->middleware('sso.client');
+
+// Protected: butuh JWT token + SSO Client Credentials
+// Cek cepat apakah user punya akses ke modul tertentu
+Route::get('/sso/verify-access', [SsoController::class, 'verifyAccess'])
+    ->middleware(['jwt.verify', 'sso.client']);
+
 // ==========================================
 // PUBLIC ROUTES (Tidak butuh login/token)
 // ==========================================
 Route::post('/auth/login', 'Api\AuthController@auth');
+
+
+
 Route::post('/auth/login/tias', 'Api\AuthController@authTias');
 Route::post('/register', 'Api\AuthController@register');
 
@@ -56,6 +84,9 @@ Route::group(['middleware' => ['jwt.verify']], function () {
     Route::get('/tx_user_modul_permission', 'Api\TxUserModulPermissionController@index');
     Route::get('/call_user', 'Api\AuthController@call_user');
 
+    // ── SSO: Daftar modul yang dapat diakses user saat ini ──────────────────────
+    Route::get('/my-modules', [MyModuleController::class, 'index']);
+
     // Route SSO untuk redirect ke app (Butuh Auth)
     Route::get('/sso/redirect', [AuthController::class, 'redirect']);
 
@@ -73,13 +104,6 @@ Route::group(['middleware' => ['jwt.verify']], function () {
 
         Route::get('/export',    [UserController::class, 'export'])->name('export');
         Route::post('/import',   [UserController::class, 'import'])->name('import');
-
-        Route::get('/{id}',              [UserController::class, 'show'])->name('show');
-        Route::match(['POST', 'PUT'], '/{id}', [UserController::class, 'update'])->name('update');
-        Route::delete('/{id}',           [UserController::class, 'destroy'])->name('destroy');
-        Route::patch('/{id}/toggle-active', [UserController::class, 'toggleActive'])->name('toggle-active');
-        Route::post('/{id}/reset-password', [UserController::class, 'resetPassword'])->name('reset-password');
-        Route::get('/{id}/activity-logs', [UserController::class, 'activityLogs'])->name('activity-logs');
 
         Route::prefix('dashboard')->group(function () {
             Route::get('stats',             [DashboardController::class, 'stats']);
@@ -102,5 +126,54 @@ Route::group(['middleware' => ['jwt.verify']], function () {
                 ->middleware('role:admin')
                 ->name('logs.purge');
         });
+
+        // ── App Modules ──────────────────────────────────────────────────────────
+        Route::prefix('app-modules')->name('app-modules.')->group(function () {
+            Route::get('/',        [AppModuleController::class, 'index'])->name('index');
+            Route::post('/',       [AppModuleController::class, 'store'])->name('store');
+            Route::get('/{id}',    [AppModuleController::class, 'show'])->name('show');
+            Route::put('/{id}',    [AppModuleController::class, 'update'])->name('update');
+            Route::delete('/{id}', [AppModuleController::class, 'destroy'])->name('destroy');
+            Route::post('/{id}/reset-secret', [AppModuleController::class, 'resetSecret'])->name('reset-secret');
+        });
+
+        // ── Roles ────────────────────────────────────────────────────────────────
+        Route::prefix('roles')->name('roles.')->group(function () {
+            Route::get('/',        [RoleController::class, 'index'])->name('index');
+            Route::post('/',       [RoleController::class, 'store'])->name('store');
+            Route::post('/assign', [RoleController::class, 'assignRole'])->name('assign');
+            Route::post('/unassign', [RoleController::class, 'unassignRole'])->name('unassign');
+            Route::get('/{id}',    [RoleController::class, 'show'])->name('show');
+            Route::put('/{id}',    [RoleController::class, 'update'])->name('update');
+            Route::delete('/{id}', [RoleController::class, 'destroy'])->name('destroy');
+        });
+
+        // ── Permissions ──────────────────────────────────────────────────────────
+        Route::prefix('permissions')->name('permissions.')->group(function () {
+            Route::get('/',           [PermissionController::class, 'index'])->name('index');
+            Route::post('/bulk',      [PermissionController::class, 'bulkStore'])->name('bulk-store');
+            Route::put('/bulk',       [PermissionController::class, 'bulkUpdate'])->name('bulk-update');
+            Route::delete('/bulk',    [PermissionController::class, 'bulkDestroy'])->name('bulk-destroy');
+            Route::post('/',          [PermissionController::class, 'store'])->name('store');
+            Route::get('/{id}',       [PermissionController::class, 'show'])->name('show');
+            Route::put('/{id}',       [PermissionController::class, 'update'])->name('update');
+            Route::delete('/{id}',    [PermissionController::class, 'destroy'])->name('destroy');
+        });
+
+        // ── Role ↔ Permission Assignments ────────────────────────────────────────
+        Route::prefix('role-permissions')->name('role-permissions.')->group(function () {
+            Route::get('/',               [RoleHasPermissionController::class, 'index'])->name('index');
+            Route::post('/assign',        [RoleHasPermissionController::class, 'assign'])->name('assign');
+            Route::post('/unassign',      [RoleHasPermissionController::class, 'unassign'])->name('unassign');
+            Route::post('/sync',          [RoleHasPermissionController::class, 'sync'])->name('sync');
+        });
+
+        // Wildcard user routes moved to the end to prevent hijacking static routes
+        Route::get('/{id}',              [UserController::class, 'show'])->name('show');
+        Route::match(['POST', 'PUT'], '/{id}', [UserController::class, 'update'])->name('update');
+        Route::delete('/{id}',           [UserController::class, 'destroy'])->name('destroy');
+        Route::patch('/{id}/toggle-active', [UserController::class, 'toggleActive'])->name('toggle-active');
+        Route::post('/{id}/reset-password', [UserController::class, 'resetPassword'])->name('reset-password');
+        Route::get('/{id}/activity-logs', [UserController::class, 'activityLogs'])->name('activity-logs');
     });
 });
