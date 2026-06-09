@@ -19,6 +19,16 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
      *
      * @var string[]
      */
+
+
+    protected $connection = 'ucl';
+
+    protected $table = 'tb_users';
+
+    protected $primaryKey = 'user_id';
+    public $incrementing = false;
+    protected $keyType = 'string';
+
     protected $fillable = [
         'name',
         'email',
@@ -33,6 +43,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         'image',
         "role_id",
         'last_login_at',
+        'email_verified_at'
     ];
 
     /**
@@ -41,9 +52,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
      * @var array
      */
     protected $hidden = [
-        'id',
         'password',
-        'remember_token',
     ];
 
     /**
@@ -79,9 +88,11 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
     public function getJWTCustomClaims()
     {
         return [
-            'id' => $this->public_id,
+            'id'    => $this->user_id,
             'email' => $this->email,
-            'role' => $this->role // opsional jika ingin melempar role juga
+            'role'  => $this->role,
+            'nidn'  => $this->nidn,
+            'npm'   => $this->npm, // opsional jika ingin melempar role juga
         ];
     }
 }

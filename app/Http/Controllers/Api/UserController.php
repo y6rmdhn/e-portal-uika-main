@@ -55,27 +55,22 @@ class UserController extends Controller
      * Store a newly created resource in storage.
      */
     public function store(StoreAdminRequest $request): JsonResponse
-    {
+{
+    try {
+        $data = $request->validated();
 
+        $user = $this->service->createUser($data);
 
-        try {
-            $data = $request->validated();
-            $data['is_active'] = filter_var($data['is_active'] ?? true, FILTER_VALIDATE_BOOLEAN);
-            $data['image'] = $request->file('image');
-
-
-            $user = $this->service->createUser($data);
-
-            return $this->successResponse(
-                new UserAdminResource($user),
-                'User Berhasil dibuat',
-                201
-            );
-        } catch (\Exception $e) {
-            $code = $e->getCode() === 422 ? 422 : 500;
-            return $this->errorResponse('Failed to create user: ' . $e->getMessage(), $code);
-        }
+        return $this->successResponse(
+            new UserAdminResource($user),
+            'User Berhasil dibuat',
+            201
+        );
+    } catch (\Exception $e) {
+        $code = $e->getCode() === 422 ? 422 : 500;
+        return $this->errorResponse('Failed to create user: ' . $e->getMessage(), $code);
     }
+}
 
     /**
      * Display the specified resource.
@@ -171,7 +166,7 @@ class UserController extends Controller
     public function import(Request $request): JsonResponse
     {
         $request->validate([
-            'file' => ['required', 'file', 'mimes:xlsx,xls,csv', 'max:5120'],
+            'file' => ['required', 'file', 'mimes:xlsx,xls,csv,txt', 'max:5120'],
         ]);
 
         try {

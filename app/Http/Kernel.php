@@ -74,5 +74,6 @@ class Kernel extends HttpKernel
 
         // SSO Client validation — untuk sub-aplikasi yang memanggil /api/sso/*
         'sso.client' => \App\Http\Middleware\SsoClientMiddleware::class,
+        'check.role' => \App\Http\Middleware\CheckRole::class
     ];
 }

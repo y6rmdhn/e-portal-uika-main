@@ -16,29 +16,20 @@ class UpdateAdminRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name'      => ['sometimes', 'string', 'max:255'],
-            'email'     => ['sometimes', 'email', 'unique:users,email,' . $this->route('id') . ',public_id'],
-            'password'  => ['sometimes', 'nullable', 'string', 'min:8'],
-            'role'      => ['sometimes', 'string', 'in:mahasiswa,dosen'],
-            'phone'     => ['nullable', 'string', 'max:20'],
-            'location'  => ['nullable', 'string', 'max:255'],
-            'about_me'  => ['nullable', 'string'],
-            'nidn'      => ['nullable', 'string', 'max:20'],
-            'nip'       => ['nullable', 'string', 'max:20'],
-            'npm'       => ['nullable', 'string', 'max:20'],
-            'is_active' => ['nullable', 'in:true,false,1,0'],
-            'image'     => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'email'    => ['sometimes', 'email'],
+            'password' => ['sometimes', 'nullable', 'string', 'min:8'],
+            'role'     => ['sometimes', 'string', 'in:Mahasiswa,Dosen,Admin'],
+            'nidn'     => ['nullable', 'string', 'max:10'],
+            'npm'      => ['nullable', 'string', 'max:12'],
         ];
     }
 
     public function messages(): array
     {
         return [
-            'email.unique'       => 'Email sudah digunakan.',
-            'password.min'       => 'Password minimal 8 karakter.',
-            'role.in'            => 'Role tidak valid. Pilih: mahasiswa atau dosen.',
-            'image.image'        => 'File harus berupa gambar.',
-            'image.max'          => 'Ukuran gambar maksimal 2MB.',
+            'email.email'    => 'Format email tidak valid.',
+            'password.min'   => 'Password minimal 8 karakter.',
+            'role.in'        => 'Role tidak valid. Pilih: Mahasiswa, Dosen, atau Admin.',
         ];
     }
 

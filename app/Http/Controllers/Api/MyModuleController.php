@@ -23,35 +23,18 @@ class MyModuleController extends Controller
      * - Jika user adalah admin/super-admin, kembalikan SEMUA modul.
      */
     public function index(Request $request)
-    {
-        $user = JWTAuth::user();
+{
+    $user = JWTAuth::user();
 
-        // Admin & super-admin dapat akses ke semua modul
-        if ($user->hasAnyRole(['admin', 'super-admin'])) {
-            $modules = AppModule::orderBy('name')->get();
+    $role = strtolower($user->role ?? '');
+    $isAdmin = in_array($role, ['admin', 'super-admin']);
 
-            return ResponseBuilder::success(200, 'success', [
-                'is_admin'   => true,
-                'role'       => $user->getRoleNames()->first(),
-                'modules'    => $modules,
-            ]);
-        }
+    $modules = AppModule::orderBy('name')->get();
 
-        // User biasa: ambil permission dari semua role yang dimiliki
-        $permissionModuleIds = $user->getAllPermissions()
-            ->pluck('appModule_id')
-            ->filter()       // buang null
-            ->unique()
-            ->values();
-
-        $modules = AppModule::whereIn('id', $permissionModuleIds)
-            ->orderBy('name')
-            ->get();
-
-        return ResponseBuilder::success(200, 'success', [
-            'is_admin'   => false,
-            'role'       => $user->getRoleNames()->first(),
-            'modules'    => $modules,
-        ]);
-    }
+    return ResponseBuilder::success(200, 'success', [
+        'is_admin' => $isAdmin,
+        'role'     => $user->role,
+        'modules'  => $modules,
+    ]);
+}
 }

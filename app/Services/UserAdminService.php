@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Tymon\JWTAuth\Facades\JWTAuth;
+use Illuminate\Support\Facades\Hash;
 
 class UserAdminService
 {
@@ -28,53 +29,81 @@ class UserAdminService
     }
 
     public function createUser(array $data): object
-    {
-        return DB::transaction(function () use ($data) {
-            $this->ensureEmailUnique($data['email']);
+{
+    return DB::transaction(function () use ($data) {
+        // Cek apakah email ada termasuk soft deleted
+        $existing = DB::connection('ucl')->table('tb_users')
+            ->where('email', $data['email'])
+            ->first();
 
-            if (isset($data['image']) && $data['image'] instanceof UploadedFile) {
-                $data['image'] = $this->uploadImage($data['image']);
-            };
+        if ($existing) {
+            if ($existing->deleted_at !== null) {
+                // Restore user soft deleted
+                DB::connection('ucl')->table('tb_users')
+                    ->where('email', $data['email'])
+                    ->update([
+                        'password'   => Hash::make($data['password']),
+                        'role'       => $data['role'],
+                        'nidn'       => $data['nidn'] ?? null,
+                        'npm'        => $data['npm']  ?? null,
+                        'deleted_at' => null,
+                        'updated_at' => now(),
+                    ]);
+                return $this->userRepository->findById($existing->user_id);
+            }
+            throw new \Exception("Email {$data['email']} sudah terdaftar.", 422);
+        }
 
-            return $this->userRepository->create($data);
-        });
-    }
+        // Cek duplikat NIDN
+        if (!empty($data['nidn']) && $this->userRepository->findByNidn($data['nidn'])) {
+            throw new \Exception("NIDN {$data['nidn']} sudah terdaftar.", 422);
+        }
+
+        // Cek duplikat NPM
+        if (!empty($data['npm']) && $this->userRepository->findByNpm($data['npm'])) {
+            throw new \Exception("NPM {$data['npm']} sudah terdaftar.", 422);
+        }
+
+        return $this->userRepository->create($data);
+    });
+}
 
     public function updateAdmin(string $id, array $data): object
-    {
-        return DB::transaction(function () use ($id, $data) {
-            $user = $this->userRepository->findById($id);
+{
+    return DB::transaction(function () use ($id, $data) {
+        $user = $this->userRepository->findById($id);
 
-            // Cek email unik kecuali milik user itu sendiri
-            if (!empty($data['email']) && $data['email'] !== $user->email) {
-                $this->ensureEmailUnique($data['email']);
-            };
-
-            if (isset($data['image']) && $data['image'] instanceof UploadedFile) {
-                // hapus foto lama jika ada
-                if ($user->image) {
-                    Storage::disk('public')->delete($user->image);
-                }
-                $data['image'] = $this->uploadImage($data['image']);
+        // Cek email unik kecuali milik user itu sendiri
+        if (!empty($data['email']) && $data['email'] !== $user->email) {
+            if ($this->userRepository->findByEmail($data['email'])) {
+                throw new \Exception("Email {$data['email']} sudah terdaftar.", 422);
             }
+        }
 
-            return $this->userRepository->update($id, $data);
-        });
-    }
+        // Cek NIDN unik
+        if (!empty($data['nidn']) && $data['nidn'] !== trim($user->nidn ?? '')) {
+            if ($this->userRepository->findByNidn($data['nidn'])) {
+                throw new \Exception("NIDN {$data['nidn']} sudah terdaftar.", 422);
+            }
+        }
+
+        // Cek NPM unik
+        if (!empty($data['npm']) && $data['npm'] !== trim($user->npm ?? '')) {
+            if ($this->userRepository->findByNpm($data['npm'])) {
+                throw new \Exception("NPM {$data['npm']} sudah terdaftar.", 422);
+            }
+        }
+
+        return $this->userRepository->update($id, $data);
+    });
+}
 
     public function deleteAdmin(string $id): bool
-    {
-        return DB::transaction(function () use ($id) {
-            $user = $this->userRepository->findById($id);
-
-            // Hapus foto jika ada
-            if ($user->image) {
-                Storage::disk('public')->delete($user->image);
-            }
-
-            return $this->userRepository->delete($id);
-        });
-    }
+{
+    return DB::transaction(function () use ($id) {
+        return $this->userRepository->delete($id);
+    });
+}
 
     public function toggleActive(string $id): object
     {

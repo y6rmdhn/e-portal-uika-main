@@ -98,7 +98,7 @@ Route::group(['middleware' => ['jwt.verify']], function () {
     });
 
     // Admin Routes
-    Route::middleware(['role:admin'])->prefix('admins')->name('admins.')->group(function () {
+    Route::middleware(['check.role:admin'])->prefix('admins')->name('admins.')->group(function () {
         Route::get('/',                     [UserController::class, 'index'])->name('index');
         Route::post('/',                    [UserController::class, 'store'])->name('store');
 

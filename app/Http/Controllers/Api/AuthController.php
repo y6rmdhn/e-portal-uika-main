@@ -38,184 +38,177 @@ class AuthController extends Controller
     ) {}
 
     public function register(Request $request)
-    {
-        // ambil data input
-        $data = $request->only('name', 'email', 'password', 'role_id');
+{
+    $validator = Validator::make($request->all(), [
+        'email'    => 'required|email',
+        'password' => 'required|string|min:8|confirmed',
+        'role'     => 'required|in:Mahasiswa,Dosen,Admin',
+        'nidn'     => 'nullable|string',
+        'npm'      => 'nullable|string',
+    ]);
 
-        // validasi data input
-        $validator = Validator::make($data, [
-            'name' => 'required|string|max:100',
-            'email' => 'required|email|unique:users,email',
-            'password' => 'required|string|min:6|max:50',
-            'role_id' => 'required'
-        ]);
-
-        //Kirim respons gagal jika permintaan tidak valid
-        if ($validator->fails()) {
-            return response()->json([
-                'status' => 400,
-                'message' => $validator->errors()->first(),
-                'data' => []
-            ], 400);
-        }
-
-        // db transaction
-        DB::beginTransaction();
-
-        // Permintaan valid, buat pengguna baru.
-        try {
-            $user = User::create([
-                'name' => $data['name'],
-                'email' => $data['email'],
-                'password' => Hash::make($data['password']),
-                'role_id' => $data['role_id']
-            ]);
-
-            $roleMap = [1 => 'admin', 2 => 'user'];
-            if (isset($roleMap[$data['role_id']])) {
-                $user->assignRole($roleMap[$data['role_id']]);
-            }
-
-            event(new Registered($user));
-
-            DB::commit();
-
-            // kembalikan response sukses
-            return response()->json([
-                'status' => 201,
-                'success' => true,
-                'message' => 'User created successfully. Please check your email to verify your account.',
-                'data' => $user
-            ], 201);
-        } catch (\Exception $th) {
-
-            DB::rollBack();
-
-            return response()->json([
-                'status' => 500,
-                'success' => false,
-                'message' => 'System error: ' . $th->getMessage(),
-                'data' => []
-            ], 500);
-        }
+    if ($validator->fails()) {
+        return response()->json(['status' => 422, 'message' => $validator->errors()->first()], 422);
     }
+
+    // Cek email sudah ada di UCL
+    $exists = DB::connection('ucl')
+        ->table('tb_users')
+        ->where('email', $request->email)
+        ->whereNull('deleted_at')
+        ->exists();
+
+    if ($exists) {
+        return response()->json(['status' => 422, 'message' => 'Email sudah terdaftar.'], 422);
+    }
+
+    // Insert ke tb_users UCL
+    DB::connection('ucl')->table('tb_users')->insert([
+        'user_id'    => \Illuminate\Support\Str::uuid(),
+        'email'      => $request->email,
+        'password'   => Hash::make($request->password),
+        'role'       => $request->role,
+        'nidn'       => $request->nidn,
+        'npm'        => $request->npm,
+        'isverified' => true, // langsung verified
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    return response()->json(['status' => 201, 'message' => 'Registrasi berhasil.'], 201);
+}
+
 
     public function auth(Request $request)
-    {
-        // validasi input
-        $validator = Validator::make($request->all(), [
-            'email' => 'required|email',
-            'password' => 'required|string'
-        ]);
+{
+    $validator = Validator::make($request->all(), [
+        'email'    => 'required|email',
+        'password' => 'required|string',
+    ]);
 
-        if ($validator->fails()) {
-            return response()->json([
-                'status' => 400,
-                'message' => 'Email and password must be filled in correctly.',
-                'data' => $validator->errors()
-            ], 400);
-        }
-
-        if ($this->loginLogService->isIpBlocked($request->ip())) {
-            $remaining = $this->loginLogService->getLockoutRemainingSeconds($request->ip(), 'ip');
-            return response()->json([
-                'status'  => 429,
-                'message' => "Terlalu banyak percobaan login. Coba lagi dalam {$remaining} detik.",
-                'data'    => []
-            ], 429);
-        }
-
-        if ($this->loginLogService->isEmailBlocked($request->email)) {
-            $remaining = $this->loginLogService->getLockoutRemainingSeconds($request->email, 'email');
-            return response()->json([
-                'status'  => 429,
-                'message' => "Akun ini sementara dikunci karena terlalu banyak percobaan. Coba lagi dalam {$remaining} detik.",
-                'data'    => []
-            ], 429);
-        }
-
-        // mengambil email dan password dari request
-        $credentials = $request->only('email', 'password');
-
-        // cek verifikasi email
-        $userCheck = User::where('email', $request->email)->first();
-
-        if ($userCheck && !$userCheck->hasVerifiedEmail()) {
-            $this->loginLogService->logFailure($request, 'email_not_verified');
-
-            return response()->json([
-                'status' => 403,
-                'message' => 'Login failed. Please verify your email first.',
-                'data' => []
-            ], 403);
-        }
-
-        try {
-            if (! $token = FacadesJWTAuth::attempt($credentials)) {
-                $this->loginLogService->logFailure($request, 'invalid_credentials');
-
-                return response()->json([
-                    'status' => 401,
-                    'message' => 'Incorrect email or password.',
-                    'data' => []
-                ], 401);
-            }
-        } catch (JWTException $e) {
-            return response()->json([
-                'status' => 500,
-                'message' => 'A system error occurred, unable to create a token.',
-                // for debugging purpose, you can uncomment the line below to see the actual error message
-                // 'message' => $e->getMessage(),
-                'data' => []
-            ], 500);
-        }
-
-        // Ambil data user dari JWT Auth
-        $user = FacadesJWTAuth::user();
-
-        $user->update(['last_login_at' => now()]);
-
-        $this->activityLog->log(
-            ActivityLogService::TYPE_LOGIN,
-            'Login ke E-Portal',
-            userId: $user->id,
-            actorId: $user->id,
-            metadata: ['ip' => $request->ip(), 'browser' => $request->userAgent()],
-        );
-
-        $this->loginLogService->logSuccess($user->id, $request);
-
-        // 1. Ambil nama role menggunakan fitur bawaan Spatie
-        $roleName = $user->getRoleNames()->first();
-        $role = $user->roles()->first();
-
-        // 2. Ubah object model menjadi array dan sisipkan role secara manual
-        $userData = $user->makeHidden('roles')->toArray();
-        $userData['role'] = $roleName;
-        $userData['role_id'] = $role ? $role->id : null;
-
-        // Set environment untuk cookie
-        $isProduction = config('app.env') === 'production';
-        $cookieDomain = $isProduction ? '.uika-bogor.ac.id' : null;
-
-        $cookie = cookie(
-            'uika_sso_token',
-            $token,
-            1440,
-            '/',
-            $cookieDomain,
-            $isProduction,
-            true,
-            false,
-            $isProduction ? 'None' : 'Lax'
-        );
-
-        // 3. Return response menggunakan $userData yang sudah berbentuk array
-        return ResponseBuilder::success(200, "Login successful", [
-            'user' => $userData,
-            'uika_sso_token' => $token
-        ])->withCookie($cookie);
+    if ($validator->fails()) {
+        return response()->json([
+            'status'  => 400,
+            'message' => 'Email dan password harus diisi dengan benar.',
+            'data'    => $validator->errors()
+        ], 400);
     }
+
+    if ($this->loginLogService->isIpBlocked($request->ip())) {
+        $remaining = $this->loginLogService->getLockoutRemainingSeconds($request->ip(), 'ip');
+        return response()->json([
+            'status'  => 429,
+            'message' => "Terlalu banyak percobaan login. Coba lagi dalam {$remaining} detik.",
+            'data'    => []
+        ], 429);
+    }
+
+    if ($this->loginLogService->isEmailBlocked($request->email)) {
+        $remaining = $this->loginLogService->getLockoutRemainingSeconds($request->email, 'email');
+        return response()->json([
+            'status'  => 429,
+            'message' => "Akun ini sementara dikunci. Coba lagi dalam {$remaining} detik.",
+            'data'    => []
+        ], 429);
+    }
+
+    // ── Cek credential ke DB UCL ──────────────────────────────────────────
+    $uclUser = DB::connection('ucl')
+        ->table('tb_users')
+        ->where('email', $request->email)
+        ->whereNull('deleted_at')
+        ->first();
+
+    if (!$uclUser) {
+        $this->loginLogService->logFailure($request, 'invalid_credentials');
+        return response()->json([
+            'status'  => 401,
+            'message' => 'Email atau password salah.',
+            'data'    => []
+        ], 401);
+    }
+
+    if (!Hash::check($request->password, $uclUser->password)) {
+        $this->loginLogService->logFailure($request, 'invalid_credentials');
+        return response()->json([
+            'status'  => 401,
+            'message' => 'Email atau password salah.',
+            'data'    => []
+        ], 401);
+    }
+
+    if (!$uclUser->isverified) {
+        $this->loginLogService->logFailure($request, 'email_not_verified');
+        return response()->json([
+            'status'  => 403,
+            'message' => 'Akun belum diverifikasi.',
+            'data'    => []
+        ], 403);
+    }
+
+    // ── Sync user ke DB E-Portal (hanya untuk kebutuhan JWT & log) ────────
+    $user = User::firstOrCreate(
+        ['email' => $uclUser->email],
+        [
+            'name'     => $uclUser->email,
+            'password' => $uclUser->password,
+            'role'     => $uclUser->role,
+        ]
+    );
+
+    // Sync role & password kalau berubah di UCL
+    $needsUpdate = [];
+    if ($user->role     !== $uclUser->role)     $needsUpdate['role']     = $uclUser->role;
+    if ($user->password !== $uclUser->password) $needsUpdate['password'] = $uclUser->password;
+    if (!empty($needsUpdate)) $user->update($needsUpdate);
+
+    // Generate JWT
+    try {
+        $token = FacadesJWTAuth::fromUser($user);
+    } catch (JWTException $e) {
+        return response()->json([
+            'status'  => 500,
+            'message' => 'Sistem error, tidak dapat membuat token.',
+            'data'    => []
+        ], 500);
+    }
+
+    // $user->update(['last_login_at' => now()]);
+
+    // $this->activityLog->log(
+    //     ActivityLogService::TYPE_LOGIN,
+    //     'Login ke E-Portal',
+    //     userId:  $user->id,
+    //     actorId: $user->id,
+    //     metadata: ['ip' => $request->ip(), 'browser' => $request->userAgent()],
+    // );
+
+    // $this->loginLogService->logSuccess($user->id, $request);
+
+    $isProduction = config('app.env') === 'production';
+    $cookieDomain = $isProduction ? '.uika-bogor.ac.id' : null;
+
+    $cookie = cookie(
+        'uika_sso_token',
+        $token,
+        1440, '/',
+        $cookieDomain,
+        $isProduction,
+        true, false,
+        $isProduction ? 'None' : 'Lax'
+    );
+
+    return ResponseBuilder::success(200, 'Login berhasil', [
+        'user' => [
+            'id'    => $user->id,
+            'email' => $uclUser->email,
+            'role'  => $uclUser->role,
+            'nidn'  => $uclUser->nidn,
+            'npm'   => $uclUser->npm,
+        ],
+        'uika_sso_token' => $token,
+    ])->withCookie($cookie);
+}
 
     public function authTias(Request $request)
     {
@@ -325,82 +318,63 @@ class AuthController extends Controller
     }
 
     public function get_user(Request $request)
-    {
-        try {
-            $user = FacadesJWTAuth::user();
+{
+    try {
+        $user = FacadesJWTAuth::user();
 
-            $roleName = $user->getRoleNames()->first();
-            $role = $user->roles()->first();
+        // Ambil role langsung dari kolom, bukan Spatie
+        $role = $user->role ?? null;
+        $isAdmin = in_array(strtolower($role ?? ''), ['admin', 'super-admin']);
 
-            $userData = $user->makeHidden('roles')->toArray();
-            $userData['role'] = $roleName;
-            $userData['role_id'] = $role ? $role->id : null;
+        $userData = [
+            'id'    => $user->user_id,
+            'email' => $user->email,
+            'name'  => $user->email,
+            'role'  => $role,
+            'nidn'  => $user->nidn ?? null,
+            'npm'   => $user->npm  ?? null,
+            'image' => null,
+        ];
 
-            if (!empty($userData['image']) && !filter_var($userData['image'], FILTER_VALIDATE_URL)) {
-                $userData['image'] = asset('storage/' . $userData['image']);
-            }
-
-            // Ambil semua permission user (jika admin/super-admin, ambil semua permission di system)
-            if ($user->hasAnyRole(['admin', 'super-admin'])) {
-                $allPermissions = \App\Models\Permission::all();
-            } else {
-                $allPermissions = $user->getAllPermissions();
-            }
-
-            // Buat list nama permission flat
-            $permissionsList = $allPermissions->pluck('name')->toArray();
-
-            // Group permission berdasarkan appModule_id
-            $permissionsByModule = [];
-            foreach ($allPermissions as $permission) {
-                if ($permission->appModule_id) {
-                    $permissionsByModule[$permission->appModule_id][] = $permission->name;
-                }
-            }
-
-            // Filter jika ada appModule_id di query parameter
-            $appModuleId = $request->query('appModule_id');
-            $modulePermissions = [];
-            if ($appModuleId) {
-                $modulePermissions = isset($permissionsByModule[$appModuleId]) ? $permissionsByModule[$appModuleId] : [];
-            }
-
-            // ── Accessible Modules ────────────────────────────────────────────
-            // Array modul lengkap yang dapat diakses user (id, name, url, permissions).
-            // Digunakan frontend E-Portal untuk tampilkan daftar app, dan sub-aplikasi
-            // untuk validasi hak akses tanpa query tambahan.
-            $accessibleModuleIds = array_keys($permissionsByModule);
-            $accessibleModulesData = \App\Models\AppModule::whereIn('id', $accessibleModuleIds)
-                ->orderBy('name')
-                ->get()
-                ->map(fn($mod) => [
-                    'id'          => $mod->id,
-                    'name'        => $mod->name,
-                    'url'         => $mod->url,
-                    'permissions' => $permissionsByModule[$mod->id] ?? [],
-                ])
-                ->values();
-
-            $userData['permissions'] = $permissionsList;
-            $userData['permissions_by_module'] = $permissionsByModule;
-            $userData['module_permissions'] = $modulePermissions;
-            $userData['accessible_modules'] = $accessibleModulesData;
-
-            return response()->json([
-                'status' => 200,
-                'success' => true,
-                'message' => 'User data retrieved successfully',
-                'data' => $userData
-            ], 200);
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 500,
-                'success' => false,
-                'message' => 'Failed to retrieve user data.',
-                'data' => []
-            ], 500);
+        // Permission & modul berdasarkan role
+        if ($isAdmin) {
+            $allModules = \App\Models\AppModule::orderBy('name')->get();
+            $accessibleModulesData = $allModules->map(fn($mod) => [
+                'id'          => $mod->id,
+                'name'        => $mod->name,
+                'url'         => $mod->url,
+                'permissions' => [],
+            ])->values();
+        } else {
+            $accessibleModulesData = \App\Models\AppModule::orderBy('name')->get()->map(fn($mod) => [
+        'id'          => $mod->id,
+        'name'        => $mod->name,
+        'url'         => $mod->url,
+        'permissions' => [],
+    ])->values();
         }
+
+        $userData['permissions']          = [];
+        $userData['permissions_by_module'] = [];
+        $userData['module_permissions']   = [];
+        $userData['accessible_modules']   = $accessibleModulesData;
+
+        return response()->json([
+            'status'  => 200,
+            'success' => true,
+            'message' => 'User data retrieved successfully',
+            'data'    => $userData
+        ], 200);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'status'  => 500,
+            'success' => false,
+            'message' => 'Failed to retrieve user data: ' . $e->getMessage(),
+            'data'    => []
+        ], 500);
     }
+}
 
     public function sendResetLinkEmail(Request $request)
     {
@@ -511,98 +485,61 @@ class AuthController extends Controller
     }
 
     public function handleGoogleCallback()
-    {
-        try {
-            $googleUser = Socialite::driver('google')->stateless()->user();
-            $user = User::where('email', $googleUser->email)->first();
+{
+    try {
+        $googleUser = Socialite::driver('google')->stateless()->user();
 
-            if (!$user) {
-                $pendingData = base64_encode(json_encode([
-                    'name' => $googleUser->name,
-                    'email' => $googleUser->email,
-                ]));
-                return redirect('http://localhost:5173/register?social_data=' . $pendingData);
-            }
+        // ── Cek email ke DB UCL dulu ───────────────────────────────────
+        $uclUser = DB::connection('ucl')
+            ->table('tb_users')
+            ->where('email', $googleUser->email)
+            ->whereNull('deleted_at')
+            ->first();
 
-            $token = FacadesJWTAuth::fromUser($user);
-
-            $isProduction = config('app.env') === 'production';
-            $cookieDomain = $isProduction ? '.uika.ac.id' : null;
-
-            $cookie = cookie(
-                'uika_sso_token',
-                $token,
-                1440,
-                '/',
-                $cookieDomain,
-                $isProduction,
-                true,
-                false,
-                'Lax'
-            );
-
-            // Tidak ada data di URL sama sekali
-            return redirect('http://localhost:5173/auth/google/success')
-                ->withCookie($cookie);
-        } catch (\Exception $e) {
-            return redirect('http://localhost:5173/login?error=GoogleLoginFailed');
+        if (!$uclUser) {
+            // Email ga terdaftar di UCL → tolak, bukan redirect ke register
+            return redirect('http://localhost:5173/login?error=AkunTidakTerdaftar');
         }
+
+        if (!$uclUser->isverified) {
+            return redirect('http://localhost:5173/login?error=AkunBelumVerifikasi');
+        }
+
+        // ── Sync/buat user lokal E-Portal ──────────────────────────────
+        $user = User::firstOrCreate(
+            ['email' => $uclUser->email],
+            [
+                'name'     => $googleUser->name,
+                'password' => $uclUser->password,
+                'nidn'     => $uclUser->nidn,
+                'npm'      => $uclUser->npm,
+            ]
+        );
+
+        $token = FacadesJWTAuth::fromUser($user);
+
+        $isProduction = config('app.env') === 'production';
+        $cookieDomain = $isProduction ? '.uika-bogor.ac.id' : null;
+
+        $cookie = cookie(
+            'uika_sso_token',
+            $token,
+            1440,
+            '/',
+            $cookieDomain,
+            $isProduction,
+            true,
+            false,
+            $isProduction ? 'None' : 'Lax'
+        );
+
+        return redirect('http://localhost:5173/auth/google/success')
+            ->withCookie($cookie);
+
+    } catch (\Exception $e) {
+        return redirect('http://localhost:5173/login?error=GoogleLoginFailed');
     }
-
-    // public function call_user(Request $request)
-    // {
-    //     $validator = Validator::make($request->only('token'), []);
-    //     if ($validator->fails()) {
-    //         return ResponseBuilder::success(200, "error", $validator->messages());
-    //     }
-
-
-    //     $unitId = $request->input('unit_id');
-    //     $roleId = $request->input('role_id');
-    //     $appModuleId = $request->input('appModule_id');
-
-    //     $data = TxUserModulPermission::select(['appModule_id', 'role_id', 'unit_id'])
-    //         ->where('user_id', JWTAuth::user()->id)
-    //         ->with([
-    //             'unit' => function ($q) {
-    //                 $q->select('id', 'name', 'status');
-    //                 // jangan lupa include 'unit_id' supaya relasi tetap bisa jalan
-    //             },
-    //             'role' => function ($q) {
-    //                 $q->select('id', 'name');
-    //                 // jangan lupa include 'role_id' supaya relasi tetap bisa jalan
-    //             },
-    //             'roleHasPermission',
-    //             'appModul' => function ($q) {
-    //                 $q->select('id', 'name', 'url');
-    //                 // jangan lupa include 'app_modul_id' supaya relasi tetap bisa jalan
-    //             },
-    //             'appModul.permission' => function ($q) {
-    //                 $q->select('id', 'appModule_id', 'name');
-    //                 // jangan lupa include 'app_modul_id' supaya relasi tetap bisa jalan
-    //             }
-    //         ]);
-    //     if ($roleId && $appModuleId && $unitId) {
-    //         $data = $data->where('role_id', $roleId)
-    //             ->where('appModule_id', $appModuleId)
-    //             ->where('unit_id', $unitId);
-    //     } else {
-    //         return ResponseBuilder::success(200, "error", 'Parameter yang di butuhkan tidak sesuai / harus diisi');
-    //     }
-
-    //     $data = $data->get();
-
-    //     return ResponseBuilder::success(200, "success", [
-    //         'user' => JWTAuth::user()->only('id', 'name', 'email', 'nidn', 'nip', 'npm', 'phone', 'location', 'is_active', 'image'),
-    //         // 'user_module_permission' => $data,
-
-    //         'detail' => $data,
-    //         // 'permissions' => $data->pluck('appModul')->flatten()->pluck('permission')->flatten()->unique('id')->values(),
-
-    //         // 'role_has_permission' => null,
-    //         'token_eportal' => 'Bearer ' . $request->token
-    //     ]);
-    // }
+}
 
     public function call_user(Request $request)
     {
@@ -735,4 +672,3 @@ class AuthController extends Controller
             ->toArray();
     }
 }
-
