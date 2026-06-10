@@ -30,6 +30,9 @@ class JwtMiddleware extends BaseMiddleware
 
             auth()->setUser($user);
         } catch (Exception $e) {
+
+            \Log::error('JWT Error: ' . $e->getMessage() . ' | Class: ' . get_class($e));
+
             if ($e instanceof \Tymon\JWTAuth\Exceptions\TokenInvalidException) {
                 return response()->json([
                     'status' => 401,

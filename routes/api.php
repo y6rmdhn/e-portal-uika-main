@@ -55,6 +55,7 @@ Route::post('/password/reset', 'Api\AuthController@resetPassword');
 
 Route::get('/auth/google/redirect', 'Api\AuthController@redirectToGoogle');
 Route::get('/auth/google/callback', 'Api\AuthController@handleGoogleCallback');
+Route::get('/auth/token-from-cookie', 'Api\AuthController@tokenFromCookie');
 
 // Route Verifikasi Email
 Route::get('/email/verify/{id}/{hash}', function (Request $request, $id) {
