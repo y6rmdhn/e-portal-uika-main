@@ -51,7 +51,7 @@ class SsoUserResource extends JsonResource
             // Ini adalah role global di tingkat institusi (dosen, mahasiswa, staff).
             // Role KONTEKSTUAL (Kaprodi Prodi TI, Staff Prodi Manajemen) adalah
             // tanggung jawab sub-aplikasi masing-masing — simpan di DB lokal Anda.
-            'institutional_role' => $this->getRoleNames()->first(),
+            'institutional_role' => $this->role,
 
             // ── Timestamp ─────────────────────────────────────────────────────
             'registered_at' => $this->created_at?->toIso8601String(),

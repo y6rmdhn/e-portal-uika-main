@@ -183,7 +183,7 @@ class AuthController extends Controller
         //     metadata: ['ip' => $request->ip(), 'browser' => $request->userAgent()],
         // );
 
-        // $this->loginLogService->logSuccess($user->id, $request);
+        $this->loginLogService->logSuccess($user->user_id, $request);
 
         $isProduction = config('app.env') === 'production';
         $cookieDomain = $isProduction ? '.uika-bogor.ac.id' : null;
@@ -210,64 +210,6 @@ class AuthController extends Controller
             ],
             'uika_sso_token' => $token,
         ])->withCookie($cookie);
-    }
-
-    public function authTias(Request $request)
-    {
-        $credentials = $request->only('email', 'password');
-
-        //valid credential
-        $get = Http::post('https://api-tias.ti.ft.uika-bogor.ac.id/auth/login', [
-            'email' => $request->email,
-            'password' => $request->password
-        ]);
-        $data = json_decode($get->body(), true);
-
-        if ($data['message'] == 'Login Success.') {
-
-            // Request is validated
-            // Crean token
-            if ($data['data']['role'] == 'Admin') {
-                $email = 'su-admin@gmail.com';
-                $pass = 'qwe123QWE!@#';
-            } else {
-                $email = 'gutam.gt@gmail.com';
-                $pass = 'qwe123QWE!@#';
-            }
-
-            try {
-
-                if (! $token = JWTAuth::attempt([
-                    'email' => $email,
-                    'password' => $pass
-                    // 'email' => $request->email,
-                    // 'password' => $request->password
-                ])) {
-                    return response()->json([
-                        'status' => 400,
-                        'message' => 'Login credentials are invalid.',
-                        'data' => []
-                    ], 200);
-                }
-            } catch (JWTException $e) {
-                return $credentials;
-                return response()->json([
-                    'status' => 200,
-                    'message' => 'Could not create token.',
-                    'data' => []
-                ], 200);
-            }
-
-            //Token created, return with success response and jwt token
-            $user = JWTAuth::user();
-            return ResponseBuilder::success(200, "success", [
-                'user' => $data['data'],
-                'uika_sso_token' => $token,
-            ]);
-        } else {
-            return response()->json($data, 200);
-            // return ResponseBuilder::success(200, "Email tidak terdaftar", null);
-        }
     }
 
     public function logout(Request $request)
@@ -304,19 +246,6 @@ class AuthController extends Controller
                 'data' => []
             ], 500);
         }
-    }
-
-    public function refresh(Request $request)
-    {
-
-        $validator = Validator::make($request->only('token'), []);
-        if ($validator->fails()) {
-            return ResponseBuilder::success(200, "error", $validator->messages());
-        }
-        return ResponseBuilder::success(200, "success", [
-            'user' => JWTAuth::user(),
-            'token' => JWTAuth::refresh(),
-        ]);
     }
 
     public function get_user(Request $request)
@@ -561,53 +490,6 @@ class AuthController extends Controller
         }
     }
 
-    public function call_user(Request $request)
-    {
-        $validator = Validator::make($request->only('token'), []);
-        if ($validator->fails()) {
-            return ResponseBuilder::success(200, "error", $validator->messages());
-        }
-
-        $roleId      = $request->input('role_id');
-        $appModuleId = $request->input('appModule_id');
-
-        if (!$roleId || !$appModuleId) {
-            return ResponseBuilder::success(200, "error", 'Parameter role_id dan appModule_id harus diisi');
-        }
-
-        $user = JWTAuth::user();
-
-        // Ambil role dari Spatie
-        $roleName = $user->getRoleNames()->first() ?? '';
-
-        $data = TxUserModulPermission::select(['appModule_id', 'role_id', 'permission_id'])
-            ->where('user_id', $user->id)
-            ->where('role_id', $roleId)
-            ->where('appModule_id', $appModuleId)
-            ->with([
-                'role' => function ($q) {
-                    $q->select('id', 'name');
-                },
-                'roleHasPermission',
-                'appModul' => function ($q) {
-                    $q->select('id', 'name', 'url');
-                },
-                'appModul.permission' => function ($q) {
-                    $q->select('id', 'appModule_id', 'name');
-                }
-            ])
-            ->get();
-
-        $userData = $user->only('id', 'name', 'email', 'nidn', 'nip', 'npm', 'phone', 'location', 'is_active', 'image');
-        $userData['role'] = $roleName; // ← tambah ini
-
-        return ResponseBuilder::success(200, "success", [
-            'user'          => $userData,
-            'detail'        => $data,
-            'token_eportal' => 'Bearer ' . $request->token
-        ]);
-    }
-
     public function redirect(Request $request)
     {
         try {
@@ -664,6 +546,10 @@ class AuthController extends Controller
                 'redirect_url' => $redirectUrl,
             ]);
         } catch (\Exception $e) {
+
+            \Log::error('SSO Redirect Error: ' . $e->getMessage());
+            \Log::error($e->getTraceAsString());
+
             return response()->json([
                 'status'  => 401,
                 'message' => 'Session invalid or expired. Error: ' . $e->getMessage(),
@@ -674,7 +560,7 @@ class AuthController extends Controller
     private function getPermissionsForContext($user, $appModuleId, $roleId): array
     {
         // If user is admin/super-admin globally, grant all permissions of the module
-        if ($user->hasAnyRole(['admin', 'super-admin'])) {
+        if (in_array($user->role, ['admin', 'super-admin'])) {
             return \App\Models\Permission::where('appModule_id', $appModuleId)
                 ->pluck('name')
                 ->toArray();

@@ -182,7 +182,7 @@ class SsoController extends Controller
         }
 
         // ── 3. Cek Status Akun ─────────────────────────────────────────────────
-        if (!$user->is_active) {
+        if (!$user->isverified) {
             return response()->json([
                 'status'  => 403,
                 'valid'   => true,  // token valid, tapi akun dinonaktifkan
