@@ -23,17 +23,15 @@ class SsoClientMiddleware
         $clientId     = $request->header('X-SSO-Client-ID');
         $clientSecret = $request->header('X-SSO-Client-Secret');
 
-        // Validasi header wajib ada
         if (!$clientId || !$clientSecret) {
             return response()->json([
                 'status'  => 401,
                 'success' => false,
-                'message' => 'SSO client credentials missing. Provide X-SSO-Client-ID and X-SSO-Client-Secret headers.',
+                'message' => 'SSO client credentials missing.',
                 'data'    => [],
             ], 401);
         }
 
-        // Cari client berdasarkan client_id
         $client = SsoClient::active()->where('client_id', $clientId)->first();
 
         if (!$client) {
@@ -45,7 +43,6 @@ class SsoClientMiddleware
             ], 401);
         }
 
-        // Validasi secret
         if (!$client->verifySecret($clientSecret)) {
             return response()->json([
                 'status'  => 401,
@@ -55,14 +52,12 @@ class SsoClientMiddleware
             ], 401);
         }
 
-        // Catat penggunaan (async-style, tidak block request)
         try {
             $client->recordUsage();
         } catch (\Exception) {
-            // silent — jangan sampai gagal catat break request
+            // silent
         }
 
-        // Inject client ke request agar controller bisa pakai
         $request->attributes->set('sso_client', $client);
 
         return $next($request);

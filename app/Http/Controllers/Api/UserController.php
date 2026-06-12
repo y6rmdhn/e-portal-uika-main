@@ -55,22 +55,22 @@ class UserController extends Controller
      * Store a newly created resource in storage.
      */
     public function store(StoreAdminRequest $request): JsonResponse
-{
-    try {
-        $data = $request->validated();
+    {
+        try {
+            $data = $request->validated();
 
-        $user = $this->service->createUser($data);
+            $user = $this->service->createUser($data);
 
-        return $this->successResponse(
-            new UserAdminResource($user),
-            'User Berhasil dibuat',
-            201
-        );
-    } catch (\Exception $e) {
-        $code = $e->getCode() === 422 ? 422 : 500;
-        return $this->errorResponse('Failed to create user: ' . $e->getMessage(), $code);
+            return $this->successResponse(
+                new UserAdminResource($user),
+                'User Berhasil dibuat',
+                201
+            );
+        } catch (\Exception $e) {
+            $code = $e->getCode() === 422 ? 422 : 500;
+            return $this->errorResponse('Failed to create user: ' . $e->getMessage(), $code);
+        }
     }
-}
 
     /**
      * Display the specified resource.
@@ -187,7 +187,7 @@ class UserController extends Controller
         try {
             $user    = $this->service->getAdminDetail($id);
             $filters = $request->only(['type', 'date_from', 'date_to', 'per_page']);
-            $logs    = $this->activityLog->getByUser($user->id, $filters);
+            $logs    = $this->activityLog->getByUser($user->user_id, $filters); // ← user_id
 
             return $this->paginatedResponse($logs, 'Activity logs retrieved', \App\Http\Resources\ActivityLogResource::class);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException) {

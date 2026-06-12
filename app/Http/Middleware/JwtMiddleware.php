@@ -30,7 +30,13 @@ class JwtMiddleware extends BaseMiddleware
 
             \Log::error('JWT Error: ' . $e->getMessage() . ' | Class: ' . get_class($e));
 
-            if ($e instanceof \Tymon\JWTAuth\Exceptions\TokenInvalidException) {
+            if ($e instanceof \Tymon\JWTAuth\Exceptions\TokenBlacklistedException) {
+                return response()->json([
+                    'status'  => 401,
+                    'message' => 'Token has been blacklisted. Please login again.',
+                    'data'    => []
+                ], 401);
+            } else if ($e instanceof \Tymon\JWTAuth\Exceptions\TokenInvalidException) {
                 return response()->json([
                     'status'  => 401,
                     'message' => 'Token is Invalid',

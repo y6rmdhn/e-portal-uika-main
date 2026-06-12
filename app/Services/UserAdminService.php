@@ -29,81 +29,81 @@ class UserAdminService
     }
 
     public function createUser(array $data): object
-{
-    return DB::transaction(function () use ($data) {
-        // Cek apakah email ada termasuk soft deleted
-        $existing = DB::connection('ucl')->table('tb_users')
-            ->where('email', $data['email'])
-            ->first();
+    {
+        return DB::transaction(function () use ($data) {
+            // Cek apakah email ada termasuk soft deleted
+            $existing = DB::connection('ucl')->table('tb_users')
+                ->where('email', $data['email'])
+                ->first();
 
-        if ($existing) {
-            if ($existing->deleted_at !== null) {
-                // Restore user soft deleted
-                DB::connection('ucl')->table('tb_users')
-                    ->where('email', $data['email'])
-                    ->update([
-                        'password'   => Hash::make($data['password']),
-                        'role'       => $data['role'],
-                        'nidn'       => $data['nidn'] ?? null,
-                        'npm'        => $data['npm']  ?? null,
-                        'deleted_at' => null,
-                        'updated_at' => now(),
-                    ]);
-                return $this->userRepository->findById($existing->user_id);
-            }
-            throw new \Exception("Email {$data['email']} sudah terdaftar.", 422);
-        }
-
-        // Cek duplikat NIDN
-        if (!empty($data['nidn']) && $this->userRepository->findByNidn($data['nidn'])) {
-            throw new \Exception("NIDN {$data['nidn']} sudah terdaftar.", 422);
-        }
-
-        // Cek duplikat NPM
-        if (!empty($data['npm']) && $this->userRepository->findByNpm($data['npm'])) {
-            throw new \Exception("NPM {$data['npm']} sudah terdaftar.", 422);
-        }
-
-        return $this->userRepository->create($data);
-    });
-}
-
-    public function updateAdmin(string $id, array $data): object
-{
-    return DB::transaction(function () use ($id, $data) {
-        $user = $this->userRepository->findById($id);
-
-        // Cek email unik kecuali milik user itu sendiri
-        if (!empty($data['email']) && $data['email'] !== $user->email) {
-            if ($this->userRepository->findByEmail($data['email'])) {
+            if ($existing) {
+                if ($existing->deleted_at !== null) {
+                    // Restore user soft deleted
+                    DB::connection('ucl')->table('tb_users')
+                        ->where('email', $data['email'])
+                        ->update([
+                            'password'   => Hash::make($data['password']),
+                            'role'       => $data['role'],
+                            'nidn'       => $data['nidn'] ?? null,
+                            'npm'        => $data['npm']  ?? null,
+                            'deleted_at' => null,
+                            'updated_at' => now(),
+                        ]);
+                    return $this->userRepository->findById($existing->user_id);
+                }
                 throw new \Exception("Email {$data['email']} sudah terdaftar.", 422);
             }
-        }
 
-        // Cek NIDN unik
-        if (!empty($data['nidn']) && $data['nidn'] !== trim($user->nidn ?? '')) {
-            if ($this->userRepository->findByNidn($data['nidn'])) {
+            // Cek duplikat NIDN
+            if (!empty($data['nidn']) && $this->userRepository->findByNidn($data['nidn'])) {
                 throw new \Exception("NIDN {$data['nidn']} sudah terdaftar.", 422);
             }
-        }
 
-        // Cek NPM unik
-        if (!empty($data['npm']) && $data['npm'] !== trim($user->npm ?? '')) {
-            if ($this->userRepository->findByNpm($data['npm'])) {
+            // Cek duplikat NPM
+            if (!empty($data['npm']) && $this->userRepository->findByNpm($data['npm'])) {
                 throw new \Exception("NPM {$data['npm']} sudah terdaftar.", 422);
             }
-        }
 
-        return $this->userRepository->update($id, $data);
-    });
-}
+            return $this->userRepository->create($data);
+        });
+    }
+
+    public function updateAdmin(string $id, array $data): object
+    {
+        return DB::transaction(function () use ($id, $data) {
+            $user = $this->userRepository->findById($id);
+
+            // Cek email unik kecuali milik user itu sendiri
+            if (!empty($data['email']) && $data['email'] !== $user->email) {
+                if ($this->userRepository->findByEmail($data['email'])) {
+                    throw new \Exception("Email {$data['email']} sudah terdaftar.", 422);
+                }
+            }
+
+            // Cek NIDN unik
+            if (!empty($data['nidn']) && $data['nidn'] !== trim($user->nidn ?? '')) {
+                if ($this->userRepository->findByNidn($data['nidn'])) {
+                    throw new \Exception("NIDN {$data['nidn']} sudah terdaftar.", 422);
+                }
+            }
+
+            // Cek NPM unik
+            if (!empty($data['npm']) && $data['npm'] !== trim($user->npm ?? '')) {
+                if ($this->userRepository->findByNpm($data['npm'])) {
+                    throw new \Exception("NPM {$data['npm']} sudah terdaftar.", 422);
+                }
+            }
+
+            return $this->userRepository->update($id, $data);
+        });
+    }
 
     public function deleteAdmin(string $id): bool
-{
-    return DB::transaction(function () use ($id) {
-        return $this->userRepository->delete($id);
-    });
-}
+    {
+        return DB::transaction(function () use ($id) {
+            return $this->userRepository->delete($id);
+        });
+    }
 
     public function toggleActive(string $id): object
     {
@@ -118,19 +118,18 @@ class UserAdminService
 
             $result = $this->userRepository->resetPassword($id, $password);
 
-            // Kirim email notifikasi ke user
             Mail::to($user->email)->send(new AdminResetPasswordMail(
-                userName: $user->name,
+                userName: $user->email,
                 newPassword: $password,
-                adminName: $admin->name,
+                adminName: $admin->email,
             ));
 
             $this->activityLog->log(
                 ActivityLogService::TYPE_RESET_PASSWORD,
-                "Password direset oleh administrator {$admin->name}",
-                userId: $user->id,
-                actorId: $admin->id,
-                metadata: ['admin_name' => $admin->name, 'admin_email' => $admin->email],
+                "Password direset oleh administrator {$admin->email}",
+                userId: $user->user_id,
+                actorId: $admin->user_id,
+                metadata: ['admin_email' => $admin->email],
             );
 
             return $result;

@@ -173,17 +173,15 @@ class AuthController extends Controller
             ], 500);
         }
 
-        // $user->update(['last_login_at' => now()]);
-
-        // $this->activityLog->log(
-        //     ActivityLogService::TYPE_LOGIN,
-        //     'Login ke E-Portal',
-        //     userId:  $user->id,
-        //     actorId: $user->id,
-        //     metadata: ['ip' => $request->ip(), 'browser' => $request->userAgent()],
-        // );
-
         $this->loginLogService->logSuccess($user->user_id, $request);
+
+        $this->activityLog->log(
+            ActivityLogService::TYPE_LOGIN,
+            'Login ke E-Portal',
+            userId: $user->user_id,
+            actorId: $user->user_id,
+            metadata: ['ip' => $request->ip()],
+        );
 
         $isProduction = config('app.env') === 'production';
         $cookieDomain = $isProduction ? '.uika-bogor.ac.id' : null;
@@ -214,8 +212,10 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
-        //Request is validated, do logout
         try {
+            $token = $request->bearerToken() ?? $request->cookie('uika_sso_token');
+            \Cache::forget('jwt_user_' . md5($token ?? ''));
+
             FacadesJWTAuth::parseToken()->invalidate();
 
             $cookie = cookie()->forget('uika_sso_token');
@@ -243,6 +243,15 @@ class AuthController extends Controller
                 'status' => 500,
                 'success' => false,
                 'message' => 'An error occurred on the server while logging out.',
+                'data' => []
+            ], 500);
+        } catch (\Exception $e) {
+            \Log::error('Logout error: ' . $e->getMessage());
+            \Log::error($e->getTraceAsString());
+            return response()->json([
+                'status' => 500,
+                'success' => false,
+                'message' => $e->getMessage(),
                 'data' => []
             ], 500);
         }

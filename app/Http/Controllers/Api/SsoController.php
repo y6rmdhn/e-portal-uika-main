@@ -128,25 +128,35 @@ class SsoController extends Controller
      */
     public function introspect(Request $request): JsonResponse
     {
+        $t1 = microtime(true);
+
         // ── 1. Ambil & Validasi Token ──────────────────────────────────────────
-        // Mendukung cookie (uika_sso_token) maupun Authorization header
         $token = $request->cookie('uika_sso_token') ?: $request->bearerToken();
 
         if (!$token) {
             return response()->json([
                 'status'  => 401,
                 'valid'   => false,
-                'message' => 'No token provided. Send JWT via Authorization: Bearer or uika_sso_token cookie.',
+                'message' => 'No token provided.',
                 'user'    => null,
                 'access'  => null,
             ], 401);
         }
 
-        // ── 2. Decode & Authenticate Token ────────────────────────────────────
+        // ── 2. Decode Token ────────────────────────────────────────────────────
         try {
-            $user = JWTAuth::setToken($token)->authenticate();
+            $payload = JWTAuth::setToken($token)->getPayload();
 
-            if (!$user) {
+            $user = (object) [
+                'user_id'    => $payload->get('sub'),
+                'email'      => $payload->get('email'),
+                'role'       => $payload->get('role'),
+                'nidn'       => $payload->get('nidn'),
+                'npm'        => $payload->get('npm'),
+                'isverified' => true,
+            ];
+
+            if (!$user->email) {
                 return response()->json([
                     'status'  => 401,
                     'valid'   => false,
@@ -159,7 +169,7 @@ class SsoController extends Controller
             return response()->json([
                 'status'  => 401,
                 'valid'   => false,
-                'message' => 'Token has expired. Please re-authenticate via SSO.',
+                'message' => 'Token has expired.',
                 'user'    => null,
                 'access'  => null,
             ], 401);
@@ -179,22 +189,31 @@ class SsoController extends Controller
                 'user'    => null,
                 'access'  => null,
             ], 401);
+        } catch (\Exception $e) {
+            \Log::error('Introspect error: ' . $e->getMessage());
+            return response()->json([
+                'status'  => 500,
+                'valid'   => false,
+                'message' => $e->getMessage(),
+            ], 500);
         }
+
+        $t2 = microtime(true);
+        \Log::info('[TIMING] token decode: ' . round(($t2 - $t1) * 1000) . 'ms');
 
         // ── 3. Cek Status Akun ─────────────────────────────────────────────────
         if (!$user->isverified) {
             return response()->json([
                 'status'  => 403,
-                'valid'   => true,  // token valid, tapi akun dinonaktifkan
+                'valid'   => true,
                 'message' => 'User account is inactive.',
                 'user'    => (new SsoUserResource($user))->toArray($request),
                 'access'  => ['has_access' => false, 'reason' => 'account_inactive'],
             ], 403);
         }
 
-        // ── 4. Ambil Payload & Tentukan Jenis Token (Scoped vs Global) ─────────
-        $payload    = JWTAuth::setToken($token)->getPayload();
-        $isScoped   = $payload->get('is_scoped') ?? false;
+        // ── 4. Ambil Payload & Tentukan Jenis Token ────────────────────────────
+        $isScoped = $payload->get('is_scoped') ?? false;
 
         if ($isScoped) {
             $appModuleId = $payload->get('appModule_id');
@@ -204,7 +223,10 @@ class SsoController extends Controller
             $unitName    = $payload->get('unit_name');
             $permissions = $payload->get('permissions') ?? [];
 
+            $t3 = microtime(true);
             $module = AppModule::find($appModuleId);
+            $t4 = microtime(true);
+            \Log::info('[TIMING] AppModule query: ' . round(($t4 - $t3) * 1000) . 'ms');
 
             $accessData = [
                 'has_access'  => true,
@@ -220,20 +242,13 @@ class SsoController extends Controller
                 'permissions' => $permissions,
             ];
         } else {
-            // Fallback: Token Global lama, butuh appModule_id di query param
             $appModuleId = $request->query('appModule_id');
-
-            if ($user->hasAnyRole(['admin', 'super-admin'])) {
-                $allPermissions = Permission::all();
-            } else {
-                $allPermissions = $user->getAllPermissions();
-            }
-
-            $accessData = $this->resolveModuleAccess($user, $allPermissions, $appModuleId, $request);
+            $accessData  = [];
         }
 
-        // ── 5. Ambil SSO Client dari middleware (untuk validasi allowed_module_ids) ──
-        /** @var \App\Models\SsoClient $ssoClient */
+        $t5 = microtime(true);
+
+        // ── 5. Cek SSO Client ──────────────────────────────────────────────────
         $ssoClient = $request->attributes->get('sso_client');
         if ($appModuleId && $ssoClient && !$ssoClient->canAccessModule((int) $appModuleId)) {
             return response()->json([
@@ -245,28 +260,28 @@ class SsoController extends Controller
             ], 403);
         }
 
-        // ── 6. Decode Token Payload untuk Metadata ────────────────────────────
-        $expireAt   = $payload->get('exp')
+        $t6 = microtime(true);
+        \Log::info('[TIMING] sso client check: ' . round(($t6 - $t5) * 1000) . 'ms');
+
+        // ── 6. Build Response ──────────────────────────────────────────────────
+        $expireAt = $payload->get('exp')
             ? \Carbon\Carbon::createFromTimestamp($payload->get('exp'))->toIso8601String()
             : null;
+
+        $t7 = microtime(true);
+        \Log::info('[TIMING] total introspect: ' . round(($t7 - $t1) * 1000) . 'ms');
 
         return response()->json([
             'status'  => 200,
             'valid'   => true,
             'message' => 'Token is valid.',
-
-            // Data user yang distandarisasi untuk sub-aplikasi
-            'user'   => (new SsoUserResource($user))->toArray($request),
-
-            // Informasi akses user ke modul ini
-            'access' => $accessData,
-
-            // Metadata SSO
+            'user'    => (new SsoUserResource($user))->toArray($request),
+            'access'  => $accessData,
             'sso_meta' => [
-                'issued_by'       => 'E-Portal UIKA',
+                'issued_by'        => 'E-Portal UIKA',
                 'token_expires_at' => $expireAt,
-                'introspected_at' => now()->toIso8601String(),
-                'client_name'     => $ssoClient?->name,
+                'introspected_at'  => now()->toIso8601String(),
+                'client_name'      => $ssoClient?->name,
             ],
         ]);
     }
