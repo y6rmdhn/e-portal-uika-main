@@ -94,71 +94,90 @@ class UserStatisticsRepository implements UserStatisticsRepositoryInterface
         });
     }
 
-    public function getUserGrowth(string $period = 'monthly'): Collection
+    public function getRecentActivity(int $limit = 10): Collection
     {
-        if ($period === 'weekly') {
-            return collect(range(6, 0))->map(function ($daysAgo) {
-                $date = now()->subDays($daysAgo)->toDateString();
-                $active = DB::table('user_login_logs')
-                    ->whereDate('created_at', $date)
-                    ->where('status', 'success')
-                    ->distinct('user_id')
-                    ->count('user_id');
+        $logs = DB::table('user_login_logs')
+            ->where('status', 'success')
+            ->orderByDesc('created_at')
+            ->limit($limit)
+            ->get(['user_id', 'ip_address', 'browser', 'platform', 'created_at']);
 
-                $total = $this->model->whereDate('created_at', '<=', $date)->count();
+        // Ambil semua user_id dulu, trus query UCL sekali aja
+        $userIds = $logs->pluck('user_id')
+            ->filter()
+            ->unique()
+            ->filter(fn($id) => preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $id))
+            ->values();
 
-                return [
-                    'label'    => now()->subDays($daysAgo)->translatedFormat('D'),
-                    'active'   => $active,
-                    'inactive' => max(0, $total - $active),
-                ];
-            });
-        }
+        $users = $this->model
+            ->whereIn('user_id', $userIds)
+            ->get(['user_id', 'email', 'role', 'npm', 'nidn'])
+            ->keyBy('user_id');
 
-        return collect(range(5, 0))->map(function ($monthsAgo) {
-            $date = now()->subMonths($monthsAgo);
-            $active = DB::table('user_login_logs')
-                ->whereMonth('created_at', $date->month)
-                ->whereYear('created_at', $date->year)
-                ->where('status', 'success')
-                ->distinct('user_id')
-                ->count('user_id');
-
-            $total = $this->model
-                ->whereYear('created_at', '<=', $date->year)
-                ->count();
-
+        return $logs->map(function ($log) use ($users) {
+            $user = $users->get($log->user_id);
             return [
-                'label'    => $date->translatedFormat('M'),
-                'active'   => $active,
-                'inactive' => max(0, $total - $active),
+                'user_id'    => $log->user_id,
+                'email'      => $user?->email ?? '-',
+                'role'       => $user?->role ?? 'user',
+                'npm'        => $user?->npm ?? null,
+                'nidn'       => $user?->nidn ?? null,
+                'ip_address' => $log->ip_address,
+                'browser'    => $log->browser,
+                'platform'   => $log->platform,
+                'login_at'   => $log->created_at,
             ];
         });
     }
 
-    public function getRecentActivity(int $limit = 10): Collection
+    public function getUserGrowth(string $period = 'monthly'): Collection
     {
-        return DB::table('user_login_logs')
-            ->where('status', 'success')
-            ->orderByDesc('created_at')
-            ->limit($limit)
-            ->get(['user_id', 'ip_address', 'browser', 'platform', 'created_at'])
-            ->map(function ($log) {
-                // Ambil role dari UCL via User model
-                $user = $this->model->where('user_id', $log->user_id)->first(['email', 'role', 'npm', 'nidn']);
+        if ($period === 'weekly') {
+            // Ambil semua data login 7 hari terakhir sekaligus
+            $loginData = DB::table('user_login_logs')
+                ->where('status', 'success')
+                ->where('created_at', '>=', now()->subDays(6)->startOfDay())
+                ->selectRaw('DATE(created_at) as date, COUNT(DISTINCT user_id) as active')
+                ->groupBy('date')
+                ->pluck('active', 'date');
+
+            // Ambil total user sekali aja
+            $totalUsers = $this->model->count();
+
+            return collect(range(6, 0))->map(function ($daysAgo) use ($loginData, $totalUsers) {
+                $date = now()->subDays($daysAgo)->toDateString();
+                $active = $loginData[$date] ?? 0;
 
                 return [
-                    'user_id'    => $log->user_id,
-                    'email'      => $user?->email ?? '-',
-                    'role'       => $user?->role ?? 'user',
-                    'npm'        => $user?->npm ?? null,
-                    'nidn'       => $user?->nidn ?? null,
-                    'ip_address' => $log->ip_address,
-                    'browser'    => $log->browser,
-                    'platform'   => $log->platform,
-                    'login_at'   => $log->created_at,
+                    'label'    => now()->subDays($daysAgo)->translatedFormat('D'),
+                    'active'   => $active,
+                    'inactive' => max(0, $totalUsers - $active),
                 ];
             });
+        }
+
+        // Monthly — ambil 6 bulan sekaligus
+        $loginData = DB::table('user_login_logs')
+            ->where('status', 'success')
+            ->where('created_at', '>=', now()->subMonths(5)->startOfMonth())
+            ->selectRaw('YEAR(created_at) as year, MONTH(created_at) as month, COUNT(DISTINCT user_id) as active')
+            ->groupBy('year', 'month')
+            ->get()
+            ->keyBy(fn($row) => $row->year . '-' . $row->month);
+
+        $totalUsers = $this->model->count();
+
+        return collect(range(5, 0))->map(function ($monthsAgo) use ($loginData, $totalUsers) {
+            $date = now()->subMonths($monthsAgo);
+            $key = $date->year . '-' . $date->month;
+            $active = $loginData[$key]->active ?? 0;
+
+            return [
+                'label'    => $date->translatedFormat('M'),
+                'active'   => $active,
+                'inactive' => max(0, $totalUsers - $active),
+            ];
+        });
     }
 
     public function getIdleUsers(int $days = 30, int $limit = 10): Collection
@@ -189,7 +208,7 @@ class UserStatisticsRepository implements UserStatisticsRepositoryInterface
                     'role'         => $user->role,
                     'npm'          => $user->npm,
                     'nidn'         => $user->nidn,
-                    'last_login_at'=> $lastLogin,
+                    'last_login_at' => $lastLogin,
                     'idle_days'    => $lastLogin ? now()->diffInDays($lastLogin) : null,
                 ];
             });

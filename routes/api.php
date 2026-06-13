@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\PermissionController;
 use App\Http\Controllers\Api\RoleHasPermissionController;
 use App\Http\Controllers\Api\MyModuleController;
 use App\Http\Controllers\Api\SsoController;
+use App\Http\Controllers\Api\SsoIntegrationController;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -125,6 +126,14 @@ Route::group(['middleware' => ['jwt.verify']], function () {
             Route::post('/assign', [RoleHasPermissionController::class, 'assign'])->name('assign');
             Route::post('/unassign', [RoleHasPermissionController::class, 'unassign'])->name('unassign');
             Route::post('/sync', [RoleHasPermissionController::class, 'sync'])->name('sync');
+        });
+
+        Route::prefix('sso-keys')->name('sso-keys.')->group(function () {
+            Route::get('/',        [SsoIntegrationController::class, 'index'])->name('index');
+            Route::post('/',       [SsoIntegrationController::class, 'store'])->name('store');
+            Route::get('/{id}',    [SsoIntegrationController::class, 'show'])->name('show');
+            Route::put('/{id}',    [SsoIntegrationController::class, 'update'])->name('update');
+            Route::delete('/{id}', [SsoIntegrationController::class, 'destroy'])->name('destroy');
         });
 
         Route::get('/{id}', [UserController::class, 'show'])->name('show');
