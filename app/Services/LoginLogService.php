@@ -104,7 +104,9 @@ class LoginLogService
             ? $this->ipLockKey($identifier)
             : $this->emailLockKey($identifier);
 
-        return (int) Cache::getTimeToLive($key);
+        if (!Cache::has($key)) return 0;
+
+        return self::LOCKOUT_MINUTES * 60;
     }
 
     /**
