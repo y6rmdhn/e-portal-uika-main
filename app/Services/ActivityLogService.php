@@ -18,8 +18,8 @@ class ActivityLogService
     public function log(
         string $type,
         string $description,
-        ?int $userId = null,
-        ?int $actorId = null,
+        ?string $userId = null,
+        ?string $actorId = null,
         array $metadata = []
     ): void {
         UserActivityLog::create([
@@ -35,16 +35,15 @@ class ActivityLogService
     {
         try {
             $user = JWTAuth::user();
-            $this->log($type, $description, $user?->id, $user?->id, $metadata);
+            $this->log($type, $description, $user?->user_id, $user?->user_id, $metadata);
         } catch (\Exception) {
-            // silent fail — jangan sampai gagal log break request utama
+            // silent fail
         }
     }
 
-    public function getByUser(int $userId, array $filters = [])
+    public function getByUser(string $userId, array $filters = [])
     {
-        $query = UserActivityLog::with(['actor:id,name,public_id'])
-            ->where('user_id', $userId)
+        $query = UserActivityLog::where('user_id', $userId)
             ->orderByDesc('created_at');
 
         if (!empty($filters['type'])) {

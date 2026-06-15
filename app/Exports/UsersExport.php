@@ -2,59 +2,41 @@
 
 namespace App\Exports;
 
-use App\Models\User;
-use Maatwebsite\Excel\Concerns\FromQuery;
+use Illuminate\Support\Facades\DB;
+use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class UsersExport implements FromQuery, WithHeadings, WithMapping, WithStyles, ShouldAutoSize
+class UsersExport implements FromCollection, WithHeadings, WithMapping, WithStyles, ShouldAutoSize
 {
     public function __construct(private array $filters = []) {}
 
-    public function query()
+    public function collection()
     {
-        $adminRoles = ['mahasiswa', 'admin', 'dosen'];
-
-        $query = User::with('roles')
-            ->whereHas('roles', fn($q) => $q->whereIn('name', $adminRoles));
+        $query = DB::connection('ucl')->table('tb_users')->whereNull('deleted_at');
 
         if (!empty($this->filters['role'])) {
-            $query->whereHas('roles', fn($q) => $q->where('name', $this->filters['role']));
+            $query->where('role', $this->filters['role']);
         }
 
         if (!empty($this->filters['search'])) {
             $search = $this->filters['search'];
-            $query->where(
-                fn($q) => $q
-                    ->where('name', 'like', "%{$search}%")
-                    ->orWhere('email', 'like', "%{$search}%")
-                    ->orWhere('npm', 'like', "%{$search}%")
-                    ->orWhere('nip', 'like', "%{$search}%")
-                    ->orWhere('nidn', 'like', "%{$search}%")
-            );
+            $query->where(function ($q) use ($search) {
+                $q->where('email', 'like', "%{$search}%")
+                  ->orWhere('nidn', 'like', "%{$search}%")
+                  ->orWhere('npm', 'like', "%{$search}%");
+            });
         }
 
-        return $query->latest();
+        return $query->orderByDesc('created_at')->get();
     }
 
     public function headings(): array
     {
-        return [
-            'No',
-            'Nama',
-            'Email',
-            'Role',
-            'NPM',
-            'NIP',
-            'NIDN',
-            'No. HP',
-            'Lokasi',
-            'Status',
-            'Tanggal Daftar',
-        ];
+        return ['No', 'Email', 'Role', 'NPM', 'NIDN', 'Tanggal Daftar'];
     }
 
     public function map($user): array
@@ -64,16 +46,11 @@ class UsersExport implements FromQuery, WithHeadings, WithMapping, WithStyles, S
 
         return [
             $no,
-            $user->name,
             $user->email,
-            $user->roles->first()?->name ?? '-',
-            $user->npm ?? '-',
-            $user->nip ?? '-',
+            $user->role,
+            $user->npm  ?? '-',
             $user->nidn ?? '-',
-            $user->phone ?? '-',
-            $user->location ?? '-',
-            $user->is_active ? 'Aktif' : 'Tidak Aktif',
-            $user->created_at?->format('d-m-Y'),
+            $user->created_at ?? '-',
         ];
     }
 

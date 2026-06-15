@@ -21,39 +21,29 @@ class StoreAdminRequest extends FormRequest
      *
      * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
      */
+    
     public function rules(): array
 {
     return [
-        'name'      => ['required', 'string', 'max:255'],
-        'email'     => ['required', 'email', 'unique:users,email'],
-        'password'  => ['required', 'string', 'min:8'],
-        'role'      => ['required', 'string', 'in:mahasiswa,dosen,admin'],
-        'phone'     => ['nullable', 'string', 'max:20'],
-        'location'  => ['nullable', 'string', 'max:255'],
-        'about_me'  => ['nullable', 'string'],
-        'nidn'      => ['nullable', 'string', 'max:20'],
-        'nip'       => ['nullable', 'string', 'max:20'],
-        'npm'       => ['nullable', 'string', 'max:20'],
-        'is_active' => ['nullable', 'in:true,false,1,0'],
-        'image'     => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+        'email'    => ['required', 'email'],
+        'password' => ['required', 'string', 'min:8'],
+        'role'     => ['required', 'string', 'in:Mahasiswa,Dosen,Admin'],
+        'nidn'     => ['nullable', 'string', 'max:10'],
+        'npm'      => ['nullable', 'string', 'max:12'],
     ];
 }
 
-    public function messages(): array
-    {
-        return [
-            'name.required'      => 'Nama wajib diisi.',
-            'email.required'     => 'Email wajib diisi.',
-            'email.unique'       => 'Email sudah digunakan.',
-            'password.required'  => 'Password wajib diisi.',
-            'password.min'       => 'Password minimal 8 karakter.',
-            'password.confirmed' => 'Konfirmasi password tidak cocok.',
-            'role.required'      => 'Role wajib dipilih.',
-            'role.in'            => 'Role tidak valid. Pilih: mahasiswa atau dosen.',
-            'image.image'        => 'File harus berupa gambar.',
-            'image.max'          => 'Ukuran gambar maksimal 2MB.',
-        ];
-    }
+public function messages(): array
+{
+    return [
+        'email.required'    => 'Email wajib diisi.',
+        'email.email'       => 'Format email tidak valid.',
+        'password.required' => 'Password wajib diisi.',
+        'password.min'      => 'Password minimal 8 karakter.',
+        'role.required'     => 'Role wajib dipilih.',
+        'role.in'           => 'Role tidak valid. Pilih: Mahasiswa, Dosen, atau Admin.',
+    ];
+}
 
     protected function failedValidation(Validator $validator)
     {

@@ -56,13 +56,8 @@ class UserController extends Controller
      */
     public function store(StoreAdminRequest $request): JsonResponse
     {
-
-
         try {
             $data = $request->validated();
-            $data['is_active'] = filter_var($data['is_active'] ?? true, FILTER_VALIDATE_BOOLEAN);
-            $data['image'] = $request->file('image');
-
 
             $user = $this->service->createUser($data);
 
@@ -171,7 +166,7 @@ class UserController extends Controller
     public function import(Request $request): JsonResponse
     {
         $request->validate([
-            'file' => ['required', 'file', 'mimes:xlsx,xls,csv', 'max:5120'],
+            'file' => ['required', 'file', 'mimes:xlsx,xls,csv,txt', 'max:5120'],
         ]);
 
         try {
@@ -192,7 +187,7 @@ class UserController extends Controller
         try {
             $user    = $this->service->getAdminDetail($id);
             $filters = $request->only(['type', 'date_from', 'date_to', 'per_page']);
-            $logs    = $this->activityLog->getByUser($user->id, $filters);
+            $logs    = $this->activityLog->getByUser($user->user_id, $filters); // ← user_id
 
             return $this->paginatedResponse($logs, 'Activity logs retrieved', \App\Http\Resources\ActivityLogResource::class);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException) {
