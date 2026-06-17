@@ -19,7 +19,7 @@ return new class extends Migration
         Schema::create('app_module_roles', function (Blueprint $table) {
             $table->id();
             $table->foreignId('app_module_id')->constrained('app_module')->cascadeOnDelete();
-            $table->foreignId('role_id')->constrained('roles')->cascadeOnDelete(); // tabel roles dari Spatie
+            $table->foreignId('role_id')->constrained(config('permission.table_names.roles', 'roles'))->cascadeOnDelete(); // tabel roles dari Spatie
             $table->timestamps();
 
             $table->unique(['app_module_id', 'role_id']); // tidak boleh duplikat

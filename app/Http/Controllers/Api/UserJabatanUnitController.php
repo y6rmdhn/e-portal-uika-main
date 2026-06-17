@@ -16,7 +16,7 @@ class UserJabatanUnitController extends Controller
     public function assign(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'user_id'    => 'required|string|exists:users,public_id',
+            'user_id'    => 'required|string|exists:App\Models\User,user_id',
             'jabatan_id' => 'required|integer|exists:m_jabatan,id',
             'unit_id'    => 'required|integer|exists:m_unit,id',
             'keterangan' => 'nullable|string',
@@ -39,7 +39,7 @@ class UserJabatanUnitController extends Controller
         ]);
 
         // Sync Spatie role
-        $userModel = \App\Models\User::where('public_id', $request->user_id)->first();
+        $userModel = \App\Models\User::where('user_id', $request->user_id)->first();
         $jabatanModel = \App\Models\Jabatan::find($request->jabatan_id);
         if ($userModel && $jabatanModel) {
             $userModel->assignRole($jabatanModel->name);
@@ -54,7 +54,7 @@ class UserJabatanUnitController extends Controller
     public function unassign(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'user_id'    => 'required|string|exists:users,public_id',
+            'user_id'    => 'required|string|exists:App\Models\User,user_id',
             'jabatan_id' => 'required|integer|exists:m_jabatan,id',
             'unit_id'    => 'required|integer|exists:m_unit,id',
         ]);
@@ -78,7 +78,7 @@ class UserJabatanUnitController extends Controller
         ])->delete();
 
         // Sync Spatie role
-        $userModel = \App\Models\User::where('public_id', $userId)->first();
+        $userModel = \App\Models\User::where('user_id', $userId)->first();
         $jabatanModel = \App\Models\Jabatan::find($jabatanId);
         if ($userModel && $jabatanModel) {
             // Check if user has this same jabatan in any other unit
