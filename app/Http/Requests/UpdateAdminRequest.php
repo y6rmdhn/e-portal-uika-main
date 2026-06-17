@@ -19,7 +19,8 @@ class UpdateAdminRequest extends FormRequest
             'name'      => ['sometimes', 'string', 'max:255'],
             'email'     => ['sometimes', 'email', 'unique:users,email,' . $this->route('id') . ',public_id'],
             'password'  => ['sometimes', 'nullable', 'string', 'min:8'],
-            'role'      => ['sometimes', 'string', 'in:mahasiswa,dosen'],
+            'roles'     => ['sometimes', 'array'],
+            'roles.*'   => ['required', 'string', 'exists:m_jabatan,name'],
             'phone'     => ['nullable', 'string', 'max:20'],
             'location'  => ['nullable', 'string', 'max:255'],
             'about_me'  => ['nullable', 'string'],
@@ -28,6 +29,7 @@ class UpdateAdminRequest extends FormRequest
             'npm'       => ['nullable', 'string', 'max:20'],
             'is_active' => ['nullable', 'in:true,false,1,0'],
             'image'     => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'unit_id'   => ['nullable', 'integer', 'exists:m_unit,id'],
         ];
     }
 
@@ -36,7 +38,8 @@ class UpdateAdminRequest extends FormRequest
         return [
             'email.unique'       => 'Email sudah digunakan.',
             'password.min'       => 'Password minimal 8 karakter.',
-            'role.in'            => 'Role tidak valid. Pilih: mahasiswa atau dosen.',
+            'roles.array'        => 'Format role tidak valid.',
+            'roles.*.exists'     => 'Role yang dipilih tidak ditemukan.',
             'image.image'        => 'File harus berupa gambar.',
             'image.max'          => 'Ukuran gambar maksimal 2MB.',
         ];

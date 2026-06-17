@@ -32,6 +32,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         'is_active',
         'image',
         "role_id",
+        'unit_id',
         'last_login_at',
     ];
 
@@ -71,6 +72,11 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         return $this->belongsTo(Role::class, 'role_id');
     }
 
+    public function unit()
+    {
+        return $this->belongsTo(Unit::class, 'unit_id');
+    }
+
     public function getJWTIdentifier()
     {
         return $this->getKey();
@@ -81,7 +87,24 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         return [
             'id' => $this->public_id,
             'email' => $this->email,
-            'role' => $this->role // opsional jika ingin melempar role juga
+            'role' => $this->role,
+            'unit_id' => $this->unit_id,
+            'unit' => $this->unit ? [
+                'id' => $this->unit->id,
+                'code' => $this->unit->code,
+                'nama_unit' => $this->unit->nama_unit,
+            ] : null,
+            'jabatan_units' => $this->roles->map(function ($role) {
+                return [
+                    'id' => $role->id,
+                    'jabatan_id' => $role->id,
+                    'nama_jabatan' => $role->name,
+                    'unit_id' => $this->unit_id,
+                    'code_unit' => $this->unit?->code,
+                    'nama_unit' => $this->unit?->nama_unit,
+                    'keterangan' => null,
+                ];
+            })->toArray(),
         ];
     }
 }

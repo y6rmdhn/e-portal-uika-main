@@ -3,12 +3,13 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Support\Facades\DB; 
+use Illuminate\Support\Facades\DB;
 
 class AppModule extends Authenticatable
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     /**
      * The attributes that are mass assignable.
@@ -20,26 +21,28 @@ class AppModule extends Authenticatable
 
     protected $fillable = [
         'name',
-        'url' 
-    ]; 
+        'url',
+    ];
 
     public function permission()
     {
-        return $this->hasMany(Permission::class, 'appModule_id', 'id'); 
-
+        return $this->hasMany(Permission::class, 'appModule_id', 'id');
     }
 
-    public static function boot()
+    public function ssoClient()
     {
-        parent::boot();
-
-        static::addGlobalScope(function ($query) {
-            $query->whereNull('app_module.deleted_at');
-        });
+        return $this->hasOne(SsoClient::class, 'app_module_id', 'id');
     }
+
+    public function roles()
+    {
+        return $this->belongsToMany(Role::class, 'role_app_modules', 'app_module_id', 'role_id');
+    }
+
+
     public static function getTableColumns()
     {
         return DB::getSchemaBuilder()->getColumnListing('app_module');
-    } 
-    
+    }
+
 }

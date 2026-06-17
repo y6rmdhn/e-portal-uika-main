@@ -201,4 +201,40 @@ class UserController extends Controller
             return $this->errorResponse('Failed to retrieve logs: ' . $e->getMessage(), 500);
         }
     }
+
+    public function assignUnit(Request $request, string $id): JsonResponse
+    {
+        try {
+            $request->validate([
+                'unit_id' => 'required|integer|exists:m_unit,id',
+            ]);
+
+            $user = $this->service->updateAdmin($id, ['unit_id' => $request->unit_id]);
+
+            return $this->successResponse(
+                new UserAdminResource($user),
+                'Unit assigned successfully'
+            );
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException) {
+            return $this->errorResponse('User not found', 404);
+        } catch (\Exception $e) {
+            return $this->errorResponse('Failed to assign unit: ' . $e->getMessage(), 500);
+        }
+    }
+
+    public function unassignUnit(string $id): JsonResponse
+    {
+        try {
+            $user = $this->service->updateAdmin($id, ['unit_id' => null]);
+
+            return $this->successResponse(
+                new UserAdminResource($user),
+                'Unit unassigned successfully'
+            );
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException) {
+            return $this->errorResponse('User not found', 404);
+        } catch (\Exception $e) {
+            return $this->errorResponse('Failed to unassign unit: ' . $e->getMessage(), 500);
+        }
+    }
 }

@@ -2,19 +2,8 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
-
-class Role extends Model
+class Role extends Jabatan
 {
-    use HasFactory;
-
-    protected $fillable = [
-        'name',
-    ];
-    
-    public function permissions()
-    {
-        return $this->belongsToMany(Permission::class, 'role_has_permissions');
-    }
+    // Legacy support. Role now inherits all properties and behavior of Jabatan,
+    // which extends Spatie's Role and maps to the m_jabatan table.
 }

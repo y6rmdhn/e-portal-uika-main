@@ -18,13 +18,9 @@ class UserRepository implements UserRepositoryInterface
 
     public function getAllUsers(array $filters = [])
     {
-        $adminRoles = ['mahasiswa', 'admin', 'dosen'];
+        $query = $this->model->with(['roles', 'unit']);
 
-        $query = $this->model
-            ->with(['roles'])
-            ->whereHas('roles', fn($q) => $q->whereIn('name', $adminRoles));
-
-        // Filter by specific role
+        // Filter by specific jabatan (role)
         if (!empty($filters['role'])) {
             $query->whereHas('roles', fn($q) => $q->where('name', $filters['role']));
         }
@@ -53,7 +49,7 @@ class UserRepository implements UserRepositoryInterface
 
     public function findById(string $id)
     {
-        return $this->model->with('roles')->where('public_id', $id)->firstOrFail();
+        return $this->model->with(['roles', 'unit'])->where('public_id', $id)->firstOrFail();
     }
 
     public function findByEmail(string $email)
@@ -75,9 +71,12 @@ class UserRepository implements UserRepositoryInterface
             'nip'       => $data['nip'] ?? null,
             'npm'       => $data['npm'] ?? null,
             'image'     => $data['image'] ?? null,
+            'unit_id'   => $data['unit_id'] ?? null,
         ]);
 
-        $user->assignRole($data['role']);
+        if (!empty($data['roles'])) {
+            $user->syncRoles($data['roles']);
+        }
 
         return $user->load('roles');
     }
@@ -101,18 +100,22 @@ class UserRepository implements UserRepositoryInterface
             return !is_null($value);
         });
 
+        if (array_key_exists('unit_id', $data)) {
+            $updateData['unit_id'] = $data['unit_id'];
+        }
+
         if (!empty($data['password'])) {
             $updateData['password'] = Hash::make($data['password']);
         }
 
         $user->update($updateData);
 
-        // Sync role jika ada perubahan
-        if (!empty($data['role'])) {
-            $user->syncRoles([$data['role']]);
+        // Sync roles jika ada perubahan
+        if (isset($data['roles'])) {
+            $user->syncRoles($data['roles']);
         }
 
-        return $user->fresh('roles');
+        return $user->fresh(['roles', 'unit']);
     }
 
     public function delete(string $id): bool

@@ -3,9 +3,9 @@
 namespace Database\Seeders;
 
 use App\Models\User;
+use App\Models\Jabatan;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
-use Spatie\Permission\Models\Role;
 
 class UserSeeder extends Seeder
 {
@@ -14,32 +14,66 @@ class UserSeeder extends Seeder
      */
     public function run(): void
     {
-        // JADIKAN SEPERTI INI:
-        Role::firstOrCreate(['name' => 'mahasiswa']);
-        Role::firstOrCreate(['name' => 'dosen']);
+        // Get or create roles (jabatans)
+        $adminRole     = Jabatan::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
+        $userRole      = Jabatan::firstOrCreate(['name' => 'user', 'guard_name' => 'web']);
+        $dosenRole     = Jabatan::firstOrCreate(['name' => 'dosen', 'guard_name' => 'web']);
+        $mahasiswaRole = Jabatan::firstOrCreate(['name' => 'mahasiswa', 'guard_name' => 'web']);
 
-        // Role::create(['name' => 'super-admin']);
-        // Role::create(['name' => 'admin-siakad']);
+        // Create Admin User
+        $admin = User::firstOrCreate(
+            ['email' => 'admin@gmail.com'],
+            [
+                'name'              => 'Administrator',
+                'password'          => Hash::make('password'),
+                'is_active'         => true,
+                'phone'             => '081234567890',
+                'email_verified_at' => now(),
+                'role_id'           => $adminRole->id,
+            ]
+        );
+        $admin->syncRoles([$adminRole]);
 
-        $admin = User::factory()->create([
-            'name'              => 'Yopan Ramadhan',
-            'email'             => 'yopandev11@gmail.com',
-            'password'          => Hash::make('password'),
-            'is_active'         => true,
-            'phone'             => '081293674531',
-            'email_verified_at' => now(),
-        ]);
+        // Create Dosen User
+        $dosen = User::firstOrCreate(
+            ['email' => 'dosen@gmail.com'],
+            [
+                'name'              => 'Dr. Ahmad Dosen, M.T.',
+                'password'          => Hash::make('password'),
+                'is_active'         => true,
+                'phone'             => '081234567891',
+                'email_verified_at' => now(),
+                'role_id'           => $dosenRole->id,
+            ]
+        );
+        $dosen->syncRoles([$dosenRole]);
 
-        $admin->assignRole('admin');
+        // Create Mahasiswa User
+        $mahasiswa = User::firstOrCreate(
+            ['email' => 'mahasiswa@gmail.com'],
+            [
+                'name'              => 'Budi Mahasiswa',
+                'password'          => Hash::make('password'),
+                'is_active'         => true,
+                'phone'             => '081234567892',
+                'email_verified_at' => now(),
+                'role_id'           => $mahasiswaRole->id,
+            ]
+        );
+        $mahasiswa->syncRoles([$mahasiswaRole]);
 
-        $users = User::factory()->count(20)->create([
-            'password'          => Hash::make('password'),
-            'is_active'         => true,
-            'email_verified_at' => now(),
-        ]);
-
-        foreach ($users as $user) {
-            $user->assignRole('mahasiswa');
-        }
+        // Create Regular User
+        $user = User::firstOrCreate(
+            ['email' => 'user@gmail.com'],
+            [
+                'name'              => 'User Biasa',
+                'password'          => Hash::make('password'),
+                'is_active'         => true,
+                'phone'             => '081234567893',
+                'email_verified_at' => now(),
+                'role_id'           => $userRole->id,
+            ]
+        );
+        $user->syncRoles([$userRole]);
     }
 }
