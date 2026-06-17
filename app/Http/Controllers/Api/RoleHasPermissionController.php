@@ -37,8 +37,6 @@ class RoleHasPermissionController extends Controller
     /**
      * POST /api/admins/role-permissions/assign
      * Bulk assign permissions to a role.
-     *
-     * Body: { "role_id": 1, "permission_ids": [1, 2, 3] }
      */
     public function assign(Request $request)
     {
@@ -92,8 +90,6 @@ class RoleHasPermissionController extends Controller
     /**
      * POST /api/admins/role-permissions/unassign
      * Bulk unassign permissions from a role.
-     *
-     * Body: { "role_id": 1, "permission_ids": [1, 2] }
      */
     public function unassign(Request $request)
     {
@@ -136,8 +132,6 @@ class RoleHasPermissionController extends Controller
     /**
      * POST /api/admins/role-permissions/sync
      * Sync (replace) all permissions of a role with the given list.
-     *
-     * Body: { "role_id": 1, "permission_ids": [1, 3] }
      */
     public function sync(Request $request)
     {

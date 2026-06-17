@@ -4,67 +4,29 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ProfileResource;
-use App\Services\ActivityLogService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
 class ProfileController extends Controller
 {
     use ApiResponse;
-    public function __construct(protected ActivityLogService $activityLog) {}
 
     public function show(): JsonResponse
     {
-        $user = JWTAuth::user()->load('roles');
+        $user = JWTAuth::user();
         return $this->successResponse(new ProfileResource($user), 'Profile retrieved successfully');
     }
 
     public function update(Request $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'phone'    => ['nullable', 'string', 'max:20'],
-            'location' => ['nullable', 'string', 'max:255'],
-            'about_me' => ['nullable', 'string'],
-            'image'    => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
-        ], [
-            'image.image' => 'File harus berupa gambar.',
-            'image.max'   => 'Ukuran gambar maksimal 5MB.',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'status'  => false,
-                'message' => $validator->errors()->first(),
-            ], 422);
-        }
-
-        $user = JWTAuth::user()->load('roles');
-        $data = $request->only(['phone', 'location', 'about_me']);
-
-        // handle upload image
-        if ($request->hasFile('image')) {
-            if ($user->image) {
-                Storage::disk('public')->delete($user->image);
-            }
-            $data['image'] = $request->file('image')->store('profiles/photos', 'public');
-        }
-
-        $user->update($data);
-        $this->activityLog->logForCurrentUser(
-            ActivityLogService::TYPE_UPDATE_PROFILE,
-            'Memperbarui data profile',
-        );
-
-        return $this->successResponse(
-            new ProfileResource($user->fresh('roles')),
-            'Profile updated successfully'
-        );
+        return response()->json([
+            'status'  => false,
+            'message' => 'Update profile tidak tersedia.',
+        ], 422);
     }
 
     public function changePassword(Request $request): JsonResponse
@@ -98,11 +60,6 @@ class ProfileController extends Controller
         $user->update([
             'password' => Hash::make($request->password),
         ]);
-
-        $this->activityLog->logForCurrentUser(
-            ActivityLogService::TYPE_CHANGE_PASSWORD,
-            'Mengubah password akun',
-        );
 
         return $this->successResponse(null, 'Password berhasil diubah.');
     }

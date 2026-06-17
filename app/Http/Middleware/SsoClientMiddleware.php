@@ -58,7 +58,7 @@ class SsoClientMiddleware
         // Catat penggunaan (async-style, tidak block request)
         try {
             $client->recordUsage();
-        } catch (\Exception) {
+        } catch (\Exception $e) {
             // silent — jangan sampai gagal catat break request
         }
 

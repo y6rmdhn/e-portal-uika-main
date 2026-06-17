@@ -12,4 +12,6 @@ interface UserRepositoryInterface
     public function delete(string $id): bool;
     public function toggleActive(string $id): object;
     public function resetPassword(string $id, string $password): object;
+    public function findByNidn(string $nidn);
+    public function findByNpm(string $npm);
 }

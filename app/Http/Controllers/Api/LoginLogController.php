@@ -8,6 +8,7 @@ use App\Services\LoginLogService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class LoginLogController extends Controller
 {
@@ -109,6 +110,104 @@ class LoginLogController extends Controller
             );
         } catch (\Throwable $e) {
             return $this->errorResponse('Failed to purge logs: ' . $e->getMessage(), 500);
+        }
+    }
+
+    public function stats(): JsonResponse
+    {
+        try {
+            $total   = $this->loginLogService->getAllLogs(['per_page' => 1])->total();
+            $success = $this->loginLogService->getAllLogs(['per_page' => 1, 'status' => 'success'])->total();
+            $failed  = $this->loginLogService->getAllLogs(['per_page' => 1, 'status' => 'failed'])->total();
+
+            return $this->successResponse([
+                'total'   => $total,
+                'success' => $success,
+                'failed'  => $failed,
+            ], 'Login log stats retrieved');
+        } catch (\Throwable $e) {
+            return $this->errorResponse('Failed: ' . $e->getMessage(), 500);
+        }
+    }
+
+    public function grouped(Request $request): JsonResponse
+    {
+        try {
+            $filters = $request->only(['date_from', 'date_to', 'status', 'user_id']);
+
+            $query = DB::table('user_login_logs')
+                ->selectRaw('
+                DATE(created_at) as date,
+                user_id,
+                COUNT(*) as total,
+                SUM(CASE WHEN status = "success" THEN 1 ELSE 0 END) as success,
+                SUM(CASE WHEN status = "failed" THEN 1 ELSE 0 END) as failed,
+                MAX(ip_address) as last_ip,
+                MAX(browser) as browser,
+                MAX(platform) as platform,
+                MAX(device_type) as device_type,
+                MAX(created_at) as last_login_at
+            ')
+                ->groupBy('date', 'user_id')
+                ->orderByDesc('date')
+                ->orderByDesc('last_login_at');
+
+            if (!empty($filters['date_from'])) {
+                $query->whereDate('created_at', '>=', $filters['date_from']);
+            }
+            if (!empty($filters['date_to'])) {
+                $query->whereDate('created_at', '<=', $filters['date_to']);
+            }
+            if (!empty($filters['status'])) {
+                $query->where('status', $filters['status']);
+            }
+            if (!empty($filters['user_id'])) {
+                $query->where('user_id', $filters['user_id']);
+            }
+
+            $logs = $query->paginate($request->query('per_page', 20));
+
+            // Inject user data dari UCL
+            $userIds = collect($logs->items())->pluck('user_id')
+                ->filter()
+                ->unique()
+                ->filter(fn($id) => preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $id));
+
+            $users = \App\Models\User::whereIn('user_id', $userIds)
+                ->get(['user_id', 'email', 'role'])
+                ->keyBy('user_id');
+
+            $items = collect($logs->items())->map(function ($log) use ($users) {
+                $user = $users->get($log->user_id);
+                return [
+                    'date'        => $log->date,
+                    'user_id'     => $log->user_id,
+                    'email'       => $user?->email ?? '-',
+                    'role'        => $user?->role ?? '-',
+                    'total'       => $log->total,
+                    'success'     => $log->success,
+                    'failed'      => $log->failed,
+                    'last_ip'     => $log->last_ip,
+                    'browser'     => $log->browser,
+                    'platform'    => $log->platform,
+                    'device_type' => $log->device_type,
+                    'last_login_at' => $log->last_login_at,
+                ];
+            });
+
+            return response()->json([
+                'status'  => true,
+                'message' => 'Grouped login logs retrieved successfully',
+                'data'    => $items,
+                'meta'    => [
+                    'current_page' => $logs->currentPage(),
+                    'per_page'     => $logs->perPage(),
+                    'total'        => $logs->total(),
+                    'last_page'    => $logs->lastPage(),
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            return $this->errorResponse('Failed: ' . $e->getMessage(), 500);
         }
     }
 }

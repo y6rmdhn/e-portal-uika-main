@@ -18,43 +18,33 @@ class StoreAdminRequest extends FormRequest
 
     /**
      * Get the validation rules that apply to the request.
-     *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
         return [
-            'name'      => ['required', 'string', 'max:255'],
-            'email'     => ['required', 'email', 'unique:users,email'],
-            'password'  => ['required', 'string', 'min:8'],
-            'roles'     => ['required', 'array'],
-            'roles.*'   => ['required', 'string', 'exists:m_jabatan,name'],
-            'phone'     => ['nullable', 'string', 'max:20'],
-            'location'  => ['nullable', 'string', 'max:255'],
-            'about_me'  => ['nullable', 'string'],
-            'nidn'      => ['nullable', 'string', 'max:20'],
-            'nip'       => ['nullable', 'string', 'max:20'],
-            'npm'       => ['nullable', 'string', 'max:20'],
-            'is_active' => ['nullable', 'in:true,false,1,0'],
-            'image'     => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
-            'unit_id'   => ['nullable', 'integer', 'exists:m_unit,id'],
+            'email'    => ['required', 'email'],
+            'password' => ['required', 'string', 'min:8'],
+            'role'     => ['required', 'string', 'in:Mahasiswa,Dosen,Admin'],
+            'nidn'     => ['nullable', 'string', 'max:20'],
+            'npm'      => ['nullable', 'string', 'max:20'],
+            'roles'    => ['required', 'array'],
+            'roles.*'  => ['required', 'string', 'exists:m_jabatan,name'],
+            'unit_id'  => ['nullable', 'integer', 'exists:m_unit,id'],
         ];
     }
 
     public function messages(): array
     {
         return [
-            'name.required'      => 'Nama wajib diisi.',
-            'email.required'     => 'Email wajib diisi.',
-            'email.unique'       => 'Email sudah digunakan.',
-            'password.required'  => 'Password wajib diisi.',
-            'password.min'       => 'Password minimal 8 karakter.',
-            'password.confirmed' => 'Konfirmasi password tidak cocok.',
-            'roles.required'     => 'Role wajib dipilih.',
-            'roles.array'        => 'Format role tidak valid.',
-            'roles.*.exists'     => 'Role yang dipilih tidak ditemukan.',
-            'image.image'        => 'File harus berupa gambar.',
-            'image.max'          => 'Ukuran gambar maksimal 2MB.',
+            'email.required'    => 'Email wajib diisi.',
+            'email.email'       => 'Format email tidak valid.',
+            'password.required' => 'Password wajib diisi.',
+            'password.min'      => 'Password minimal 8 karakter.',
+            'role.required'     => 'Role institusi wajib dipilih.',
+            'role.in'           => 'Role tidak valid. Pilih: Mahasiswa, Dosen, atau Admin.',
+            'roles.required'    => 'Jabatan wajib dipilih.',
+            'roles.array'       => 'Format jabatan tidak valid.',
+            'roles.*.exists'    => 'Jabatan yang dipilih tidak ditemukan.',
         ];
     }
 

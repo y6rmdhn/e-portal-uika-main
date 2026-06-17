@@ -7,6 +7,7 @@ use App\Http\Resources\SsoUserResource;
 use App\Models\AppModule;
 use App\Models\Permission;
 use App\Models\SsoClient;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Tymon\JWTAuth\Exceptions\JWTException;
@@ -14,29 +15,8 @@ use Tymon\JWTAuth\Exceptions\TokenExpiredException;
 use Tymon\JWTAuth\Exceptions\TokenInvalidException;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
-/**
- * SsoController
- *
- * Endpoint-endpoint yang dirancang khusus untuk dikonsumsi oleh sub-aplikasi
- * (SIAKAD, E-Library, Portal Keuangan, dll.) sebagai bagian dari integrasi SSO.
- *
- * Semua endpoint di sini (kecuali capabilities) membutuhkan:
- * 1. Token JWT valid (dari cookie uika_sso_token atau Authorization header)
- * 2. SSO Client credentials (X-SSO-Client-ID + X-SSO-Client-Secret header)
- */
 class SsoController extends Controller
 {
-    // ─────────────────────────────────────────────────────────────────────────
-    // PUBLIC — Tidak butuh autentikasi
-    // ─────────────────────────────────────────────────────────────────────────
-
-    /**
-     * GET /api/sso/capabilities
-     *
-     * Self-documenting endpoint yang mendeskripsikan kontrak SSO.
-     * Berguna untuk developer sub-aplikasi memahami apa yang dijamin SSO.
-     * Tidak membutuhkan token maupun client credentials.
-     */
     public function capabilities(): JsonResponse
     {
         return response()->json([
@@ -44,10 +24,7 @@ class SsoController extends Controller
             'service' => 'E-Portal UIKA SSO',
             'version' => '2.0',
             'issued_by' => config('app.url'),
-
             'description' => 'E-Portal SSO menyediakan autentikasi terpusat dan manajemen hak akses modul untuk ekosistem aplikasi UIKA.',
-
-            // ── Yang DIJAMIN oleh SSO ─────────────────────────────────────────
             'sso_guarantees' => [
                 'identity'            => 'Identitas user (nama, email, NIDN/NIM/NIP) terverifikasi.',
                 'email_verification'  => 'Hanya user dengan email terverifikasi yang bisa login.',
@@ -57,109 +34,52 @@ class SsoController extends Controller
                 'token_validity'      => 'Validitas token JWT (expired, invalid, atau aktif).',
                 'account_status'      => 'Status aktif/nonaktif akun (is_active).',
             ],
-
-            // ── Yang BUKAN tanggung jawab SSO ─────────────────────────────────
             'app_responsibility' => [
                 'contextual_roles'  => 'Role kontekstual (Kaprodi Prodi TI, Bendahara Unit X) — simpan di DB lokal.',
                 'org_structure'     => 'Struktur organisasi (fakultas, prodi, unit) — kelola di app masing-masing.',
                 'granular_perms'    => 'Permission granular dalam app (input_nilai, acc_krs) — kelola di app sendiri.',
                 'domain_entities'   => 'Entitas bisnis (KRS, nilai, peminjaman buku) — bukan domain SSO.',
             ],
-
-            // ── Endpoint yang Tersedia ─────────────────────────────────────────
-            'endpoints' => [
-                [
-                    'method'      => 'POST',
-                    'path'        => '/api/sso/introspect',
-                    'description' => 'Validasi token + dapatkan data user & permissions. ENDPOINT UTAMA.',
-                    'auth'        => 'JWT Token (cookie atau Bearer) + SSO Client Credentials',
-                    'headers'     => [
-                        'X-SSO-Client-ID'     => 'Client ID sub-aplikasi Anda',
-                        'X-SSO-Client-Secret' => 'Client Secret sub-aplikasi Anda',
-                    ],
-                    'query_params' => [
-                        'appModule_id' => '(required) ID modul sub-aplikasi Anda di sistem SSO',
-                    ],
-                ],
-                [
-                    'method'      => 'GET',
-                    'path'        => '/api/sso/verify-access',
-                    'description' => 'Cek cepat apakah user punya akses ke modul tertentu.',
-                    'auth'        => 'JWT Token + SSO Client Credentials',
-                    'query_params' => [
-                        'appModule_id' => '(required) ID modul yang ingin dicek',
-                    ],
-                ],
-                [
-                    'method'      => 'GET',
-                    'path'        => '/api/sso/capabilities',
-                    'description' => 'Dokumentasi ini. Tidak butuh autentikasi.',
-                    'auth'        => 'None',
-                ],
-            ],
-
-            // ── Panduan Integrasi ──────────────────────────────────────────────
-            'integration_guide' => 'Lihat file SSO_INTEGRATION_GUIDE.md di root proyek SSO.',
-
-            // ── Kontak ────────────────────────────────────────────────────────
-            'contact' => 'Hubungi admin E-Portal untuk registrasi SSO Client dan mendapatkan credentials.',
         ]);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // PROTECTED — Butuh JWT + SSO Client Credentials
-    // ─────────────────────────────────────────────────────────────────────────
-
-    /**
-     * POST /api/sso/introspect
-     *
-     * Endpoint UTAMA untuk sub-aplikasi. Dipanggil saat user baru datang via SSO redirect.
-     *
-     * Sub-aplikasi kirim:
-     * - Token JWT (via cookie uika_sso_token atau Authorization: Bearer)
-     * - X-SSO-Client-ID + X-SSO-Client-Secret header
-     * - Query param: appModule_id (ID modul sub-aplikasi di sistem SSO)
-     *
-     * SSO akan kembalikan:
-     * - Data user lengkap (sso_id, nama, email, identitas akademik, dll.)
-     * - Apakah user punya akses ke modul tersebut
-     * - Daftar permission user untuk modul tersebut
-     * - Metadata token
-     */
     public function introspect(Request $request): JsonResponse
     {
-        // ── 1. Ambil & Validasi Token ──────────────────────────────────────────
-        // Mendukung cookie (uika_sso_token) maupun Authorization header
+        $t1 = microtime(true);
+
         $token = $request->cookie('uika_sso_token') ?: $request->bearerToken();
 
         if (!$token) {
             return response()->json([
                 'status'  => 401,
                 'valid'   => false,
-                'message' => 'No token provided. Send JWT via Authorization: Bearer or uika_sso_token cookie.',
+                'message' => 'No token provided.',
                 'user'    => null,
                 'access'  => null,
             ], 401);
         }
 
-        // ── 2. Decode & Authenticate Token ────────────────────────────────────
         try {
-            $user = JWTAuth::setToken($token)->authenticate();
+            $payload = JWTAuth::setToken($token)->getPayload();
+            $userId = $payload->get('sub');
 
+            // Fetch central User model using Eloquent
+            $user = User::where('user_id', $userId)->first();
             if (!$user) {
-                return response()->json([
-                    'status'  => 401,
-                    'valid'   => false,
-                    'message' => 'Token valid but user not found.',
-                    'user'    => null,
-                    'access'  => null,
-                ], 401);
+                $user = (object) [
+                    'user_id'    => $userId,
+                    'email'      => $payload->get('email'),
+                    'role'       => $payload->get('role'),
+                    'nidn'       => $payload->get('nidn'),
+                    'npm'        => $payload->get('npm'),
+                    'isverified' => true,
+                ];
             }
         } catch (TokenExpiredException) {
             return response()->json([
                 'status'  => 401,
                 'valid'   => false,
-                'message' => 'Token has expired. Please re-authenticate via SSO.',
+                'message' => 'Token has expired.',
                 'user'    => null,
                 'access'  => null,
             ], 401);
@@ -179,22 +99,16 @@ class SsoController extends Controller
                 'user'    => null,
                 'access'  => null,
             ], 401);
-        }
-
-        // ── 3. Cek Status Akun ─────────────────────────────────────────────────
-        if (!$user->is_active) {
+        } catch (\Exception $e) {
+            \Log::error('Introspect error: ' . $e->getMessage());
             return response()->json([
-                'status'  => 403,
-                'valid'   => true,  // token valid, tapi akun dinonaktifkan
-                'message' => 'User account is inactive.',
-                'user'    => (new SsoUserResource($user))->toArray($request),
-                'access'  => ['has_access' => false, 'reason' => 'account_inactive'],
-            ], 403);
+                'status'  => 500,
+                'valid'   => false,
+                'message' => $e->getMessage(),
+            ], 500);
         }
 
-        // ── 4. Ambil Payload & Tentukan Jenis Token (Scoped vs Global) ─────────
-        $payload    = JWTAuth::setToken($token)->getPayload();
-        $isScoped   = $payload->get('is_scoped') ?? false;
+        $isScoped = $payload->get('is_scoped') ?? false;
 
         if ($isScoped) {
             $appModuleId = $payload->get('appModule_id');
@@ -220,20 +134,10 @@ class SsoController extends Controller
                 'permissions' => $permissions,
             ];
         } else {
-            // Fallback: Token Global lama, butuh appModule_id di query param
             $appModuleId = $request->query('appModule_id');
-
-            if ($user->hasAnyRole(['admin', 'super-admin'])) {
-                $allPermissions = Permission::all();
-            } else {
-                $allPermissions = $user->getAllPermissions();
-            }
-
-            $accessData = $this->resolveModuleAccess($user, $allPermissions, $appModuleId, $request);
+            $accessData  = [];
         }
 
-        // ── 5. Ambil SSO Client dari middleware (untuk validasi allowed_module_ids) ──
-        /** @var \App\Models\SsoClient $ssoClient */
         $ssoClient = $request->attributes->get('sso_client');
         if ($appModuleId && $ssoClient && !$ssoClient->canAccessModule((int) $appModuleId)) {
             return response()->json([
@@ -245,8 +149,7 @@ class SsoController extends Controller
             ], 403);
         }
 
-        // ── 6. Decode Token Payload untuk Metadata ────────────────────────────
-        $expireAt   = $payload->get('exp')
+        $expireAt = $payload->get('exp')
             ? \Carbon\Carbon::createFromTimestamp($payload->get('exp'))->toIso8601String()
             : null;
 
@@ -254,32 +157,17 @@ class SsoController extends Controller
             'status'  => 200,
             'valid'   => true,
             'message' => 'Token is valid.',
-
-            // Data user yang distandarisasi untuk sub-aplikasi
-            'user'   => (new SsoUserResource($user))->toArray($request),
-
-            // Informasi akses user ke modul ini
-            'access' => $accessData,
-
-            // Metadata SSO
+            'user'    => (new SsoUserResource($user))->toArray($request),
+            'access'  => $accessData,
             'sso_meta' => [
-                'issued_by'       => 'E-Portal UIKA',
+                'issued_by'        => 'E-Portal UIKA',
                 'token_expires_at' => $expireAt,
-                'introspected_at' => now()->toIso8601String(),
-                'client_name'     => $ssoClient?->name,
+                'introspected_at'  => now()->toIso8601String(),
+                'client_name'      => $ssoClient?->name,
             ],
         ]);
     }
 
-    /**
-     * GET /api/sso/verify-access?appModule_id={id}
-     *
-     * Cek cepat apakah user yang sedang login punya akses ke modul tertentu.
-     * Lebih ringan dari introspect — hanya kembalikan has_access + permissions.
-     *
-     * Cocok digunakan sebagai gate check di middleware sub-aplikasi pada setiap request,
-     * dengan caching di sisi sub-aplikasi (cache 5-15 menit).
-     */
     public function verifyAccess(Request $request): JsonResponse
     {
         $appModuleId = $request->query('appModule_id');
@@ -313,12 +201,13 @@ class SsoController extends Controller
             ], 401);
         }
 
-        if (!$user->is_active) {
+        $isverified = $user->isverified ?? true;
+        if (!$isverified) {
             return response()->json([
                 'status'     => 403,
                 'has_access' => false,
                 'message'    => 'Account is inactive.',
-                'sso_id'     => $user->public_id,
+                'sso_id'     => $user->user_id,
             ], 403);
         }
 
@@ -326,7 +215,6 @@ class SsoController extends Controller
 
         if ($isScoped) {
             $tokenAppModuleId = $payload->get('appModule_id');
-            // Pastikan token memang diperuntukkan untuk appModule_id yang diminta
             if ((int)$tokenAppModuleId !== (int)$appModuleId) {
                 return response()->json([
                     'status'     => 403,
@@ -348,7 +236,8 @@ class SsoController extends Controller
                 'permissions' => $permissions,
             ];
         } else {
-            if ($user->hasAnyRole(['admin', 'super-admin'])) {
+            $isGlobalAdmin = in_array(strtolower($user->role ?? ''), ['admin', 'super-admin']) || $user->hasAnyRole(['admin', 'super-admin']);
+            if ($isGlobalAdmin) {
                 $allPermissions = Permission::all();
             } else {
                 $allPermissions = $user->getAllPermissions();
@@ -359,29 +248,15 @@ class SsoController extends Controller
 
         return response()->json([
             'status'      => 200,
-            'sso_id'      => $user->public_id,
+            'sso_id'      => $user->user_id,
             'has_access'  => $accessData['has_access'],
             'permissions' => $accessData['permissions'],
             'module'      => $accessData['module'],
         ]);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // PRIVATE HELPERS
-    // ─────────────────────────────────────────────────────────────────────────
-
-    /**
-     * Resolve informasi akses user ke modul tertentu.
-     * Termasuk: has_access (bool), daftar permissions, dan data modul.
-     *
-     * @param \App\Models\User $user
-     * @param \Illuminate\Support\Collection $allPermissions
-     * @param int|string|null $appModuleId
-     * @param Request $request
-     */
     private function resolveModuleAccess($user, $allPermissions, $appModuleId, Request $request): array
     {
-        // Group permissions by appModule_id
         $permissionsByModule = [];
         foreach ($allPermissions as $perm) {
             if ($perm->appModule_id) {
@@ -390,7 +265,6 @@ class SsoController extends Controller
         }
 
         if (!$appModuleId) {
-            // Tidak ada modul spesifik → kembalikan semua modul yang bisa diakses
             $accessibleModuleIds = array_keys($permissionsByModule);
             $accessibleModules   = AppModule::whereIn('id', $accessibleModuleIds)
                 ->orderBy('name')
@@ -410,11 +284,10 @@ class SsoController extends Controller
             ];
         }
 
-        // Ada modul spesifik → cek akses ke modul itu
         $modulePermissions = $permissionsByModule[$appModuleId] ?? [];
-        $hasAccess         = !empty($modulePermissions) || $user->hasAnyRole(['admin', 'super-admin']);
+        $isGlobalAdmin = in_array(strtolower($user->role ?? ''), ['admin', 'super-admin']) || $user->hasAnyRole(['admin', 'super-admin']);
+        $hasAccess         = !empty($modulePermissions) || $isGlobalAdmin;
 
-        // Ambil data modul
         $module = AppModule::find($appModuleId);
 
         return [

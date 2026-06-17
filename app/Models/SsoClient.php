@@ -48,8 +48,8 @@ class SsoClient extends Model
 
         return [
             'client_id'     => (string) Str::uuid(),
-            'client_secret' => Hash::make($plainSecret),
-            'plain_secret'  => $plainSecret, // hanya untuk ditampilkan ke admin
+            'client_secret' => hash('sha256', $plainSecret),
+            'plain_secret'  => $plainSecret,
         ];
     }
 
@@ -60,7 +60,7 @@ class SsoClient extends Model
      */
     public function verifySecret(string $plainSecret): bool
     {
-        return Hash::check($plainSecret, $this->client_secret);
+        return hash('sha256', $plainSecret) === $this->client_secret;
     }
 
     /**

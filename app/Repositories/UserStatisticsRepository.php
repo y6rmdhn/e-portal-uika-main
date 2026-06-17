@@ -16,6 +16,8 @@ class UserStatisticsRepository implements UserStatisticsRepositoryInterface
         $this->model = $model;
     }
 
+    // ── Dari tb_users UCL (PostgreSQL) ────────────────────────────────────────
+
     public function getTotalUsers(): int
     {
         return $this->model->count();
@@ -23,36 +25,49 @@ class UserStatisticsRepository implements UserStatisticsRepositoryInterface
 
     public function getActiveUsersCount(int $days = 30): int
     {
-        return $this->model->where('last_login_at', '>=', now()->subDays($days))->count();
+        // Pakai user_login_logs MySQL
+        $activeIds = DB::table('user_login_logs')
+            ->where('created_at', '>=', now()->subDays($days))
+            ->where('status', 'success')
+            ->distinct()
+            ->pluck('user_id');
+
+        return $activeIds->count();
     }
 
     public function getInactiveUsersCount(int $days = 30): int
     {
-        return $this->model->where(function ($q) use ($days) {
-            $q->where('last_login_at', '<', now()->subDays($days))->orWhereNull('last_login_at');
-        })->count();
+        $total = $this->getTotalUsers();
+        $active = $this->getActiveUsersCount($days);
+        return max(0, $total - $active);
     }
 
     public function getNewUsersThisMonth(): int
     {
-        return $this->model->whereMonth('created_at', now()->month)->whereYear('created_at', now()->year)->count();
+        return $this->model
+            ->whereMonth('created_at', now()->month)
+            ->whereYear('created_at', now()->year)
+            ->count();
     }
 
     public function getTotalLoginToday(): int
-{
-    return DB::table('user_login_logs')
-        ->whereDate('created_at', today())
-        ->where('status', 'success')
-        ->count();
-}
+    {
+        return DB::table('user_login_logs')
+            ->whereDate('created_at', today())
+            ->where('status', 'success')
+            ->count();
+    }
 
     public function getActiveUsersOverTime(string $period = 'weekly'): Collection
     {
-        // 7 hari terakhir, group per hari
         if ($period === 'weekly') {
             return collect(range(6, 0))->map(function ($daysAgo) {
                 $date = now()->subDays($daysAgo)->toDateString();
-                $count = $this->model->whereDate('last_login_at', $date)->count();
+                $count = DB::table('user_login_logs')
+                    ->whereDate('created_at', $date)
+                    ->where('status', 'success')
+                    ->distinct('user_id')
+                    ->count('user_id');
 
                 return [
                     'label' => now()->subDays($daysAgo)->translatedFormat('D'),
@@ -62,17 +77,55 @@ class UserStatisticsRepository implements UserStatisticsRepositoryInterface
             });
         }
 
-        // Monthly: 6 bulan terakhir, group per bulan
         return collect(range(5, 0))->map(function ($monthsAgo) {
             $date = now()->subMonths($monthsAgo);
-            $count = $this->model->whereMonth('last_login_at', $date->month)
-                ->whereYear('last_login_at', $date->year)
-                ->count();
+            $count = DB::table('user_login_logs')
+                ->whereMonth('created_at', $date->month)
+                ->whereYear('created_at', $date->year)
+                ->where('status', 'success')
+                ->distinct('user_id')
+                ->count('user_id');
 
             return [
-                'label' => now()->subMonths($monthsAgo)->translatedFormat('M Y'),
-                'date'  => $date,
+                'label' => $date->translatedFormat('M Y'),
+                'date'  => $date->toDateString(),
                 'count' => $count,
+            ];
+        });
+    }
+
+    public function getRecentActivity(int $limit = 10): Collection
+    {
+        $logs = DB::table('user_login_logs')
+            ->where('status', 'success')
+            ->orderByDesc('created_at')
+            ->limit($limit)
+            ->get(['user_id', 'ip_address', 'browser', 'platform', 'created_at']);
+
+        // Ambil semua user_id dulu, trus query UCL sekali aja
+        $userIds = $logs->pluck('user_id')
+            ->filter()
+            ->unique()
+            ->filter(fn($id) => preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $id))
+            ->values();
+
+        $users = $this->model
+            ->whereIn('user_id', $userIds)
+            ->get(['user_id', 'email', 'role', 'npm', 'nidn'])
+            ->keyBy('user_id');
+
+        return $logs->map(function ($log) use ($users) {
+            $user = $users->get($log->user_id);
+            return [
+                'user_id'    => $log->user_id,
+                'email'      => $user?->email ?? '-',
+                'role'       => $user?->role ?? 'user',
+                'npm'        => $user?->npm ?? null,
+                'nidn'       => $user?->nidn ?? null,
+                'ip_address' => $log->ip_address,
+                'browser'    => $log->browser,
+                'platform'   => $log->platform,
+                'login_at'   => $log->created_at,
             ];
         });
     }
@@ -80,86 +133,109 @@ class UserStatisticsRepository implements UserStatisticsRepositoryInterface
     public function getUserGrowth(string $period = 'monthly'): Collection
     {
         if ($period === 'weekly') {
-            return collect(range(6, 0))->map(function ($daysAgo) {
+            // Ambil semua data login 7 hari terakhir sekaligus
+            $loginData = DB::table('user_login_logs')
+                ->where('status', 'success')
+                ->where('created_at', '>=', now()->subDays(6)->startOfDay())
+                ->selectRaw('DATE(created_at) as date, COUNT(DISTINCT user_id) as active')
+                ->groupBy('date')
+                ->pluck('active', 'date');
+
+            // Ambil total user sekali aja
+            $totalUsers = $this->model->count();
+
+            return collect(range(6, 0))->map(function ($daysAgo) use ($loginData, $totalUsers) {
                 $date = now()->subDays($daysAgo)->toDateString();
+                $active = $loginData[$date] ?? 0;
 
                 return [
-                    'label' => now()->subDays($daysAgo)->translatedFormat('D'),
-                    'active' => $this->model->where('last_login_at', '>=', now()->subDays($daysAgo + 30))->count(),
-                    'inactive' => $this->model->where(function ($q) use ($date, $daysAgo) {
-                        $q->where('last_login_at', '<', now()->subDays($daysAgo + 30))->orWhereNull('last_login_at');
-                    })->whereDate('created_at', '<=', $date)->count(),
+                    'label'    => now()->subDays($daysAgo)->translatedFormat('D'),
+                    'active'   => $active,
+                    'inactive' => max(0, $totalUsers - $active),
                 ];
             });
         }
 
-        return collect(range(5, 0))->map(function ($monthsAgo) {
+        // Monthly — ambil 6 bulan sekaligus
+        $loginData = DB::table('user_login_logs')
+            ->where('status', 'success')
+            ->where('created_at', '>=', now()->subMonths(5)->startOfMonth())
+            ->selectRaw('YEAR(created_at) as year, MONTH(created_at) as month, COUNT(DISTINCT user_id) as active')
+            ->groupBy('year', 'month')
+            ->get()
+            ->keyBy(fn($row) => $row->year . '-' . $row->month);
+
+        $totalUsers = $this->model->count();
+
+        return collect(range(5, 0))->map(function ($monthsAgo) use ($loginData, $totalUsers) {
             $date = now()->subMonths($monthsAgo);
+            $key = $date->year . '-' . $date->month;
+            $active = $loginData[$key]->active ?? 0;
 
             return [
-                'label' => $date->translatedFormat('M'),
-                'active' => $this->model->whereMonth('last_login_at', $date->month)->whereYear('last_login_at', $date->year)->count(),
-                'inactive' => $this->model->where(function ($q) use ($date) {
-                    $q->where('last_login_at', '<', $date->copy()->subDays(30))->orWhereNull('last_login_at');
-                })->whereYear('created_at', '<=', $date->year)->count(),
+                'label'    => $date->translatedFormat('M'),
+                'active'   => $active,
+                'inactive' => max(0, $totalUsers - $active),
             ];
         });
     }
 
-    public function getRecentActivity(int $limit = 10): Collection
-    {
-        return $this->model->whereNotNull('last_login_at')
-            ->with('roles')
-            ->orderByDesc('last_login_at')
-            ->limit($limit)
-            ->get(['id', 'name', 'email', 'last_login_at'])
-            ->map(fn($u) => [
-                'id' => $u->id,
-                'name' => $u->name,
-                'email' => $u->email,
-                'role' => $u->roles->first()?->name ?? 'user',
-                'last_login_at' => $u->last_login_at,
-            ]);
-    }
-
     public function getIdleUsers(int $days = 30, int $limit = 10): Collection
     {
-        return $this->model->where(function ($q) use ($days) {
-            $q->where('last_login_at', '<', now()->subDays($days))->orWhereNull('last_login_at');
-        })
-            ->with('roles')
-            ->orderBy('last_login_at')
+        // User yang tidak ada di login_logs dalam $days hari terakhir
+        $activeUserIds = DB::table('user_login_logs')
+            ->where('created_at', '>=', now()->subDays($days))
+            ->where('status', 'success')
+            ->distinct()
+            ->pluck('user_id')
+            ->toArray();
+
+        $lastLogins = DB::table('user_login_logs')
+            ->where('status', 'success')
+            ->select('user_id', DB::raw('MAX(created_at) as last_login_at'))
+            ->groupBy('user_id')
+            ->pluck('last_login_at', 'user_id');
+
+        return $this->model
+            ->whereNotIn('user_id', $activeUserIds)
             ->limit($limit)
-            ->get(['id', 'name', 'email', 'last_login_at'])
-            ->map(fn($u) => [
-                'id' => $u->id,
-                'name' => $u->name,
-                'email' => $u->email,
-                'role' => $u->roles->first()?->name ?? 'user',
-                'last_login_at' => $u->last_login_at,
-                'idle_days' => $u->last_login_at ? now()->diffInDays($u->last_login_at) : null,
-            ]);
+            ->get(['user_id', 'email', 'role', 'npm', 'nidn'])
+            ->map(function ($user) use ($lastLogins, $days) {
+                $lastLogin = $lastLogins[$user->user_id] ?? null;
+                return [
+                    'user_id'      => $user->user_id,
+                    'email'        => $user->email,
+                    'role'         => $user->role,
+                    'npm'          => $user->npm,
+                    'nidn'         => $user->nidn,
+                    'last_login_at' => $lastLogin,
+                    'idle_days'    => $lastLogin ? now()->diffInDays($lastLogin) : null,
+                ];
+            });
     }
 
     public function getUsersByRole(): Collection
     {
-        return DB::table('model_has_roles')
-            ->join('roles', 'roles.id', '=', 'model_has_roles.role_id')
-            ->select('roles.name as role', DB::raw('count(*) as total'))
-            ->where('model_has_roles.model_type', get_class($this->model))
-            ->groupBy('roles.name')
-            ->get();
+        return $this->model
+            ->selectRaw('role, count(*) as total')
+            ->groupBy('role')
+            ->get()
+            ->map(fn($item) => [
+                'role'  => $item->role,
+                'total' => $item->total,
+            ]);
     }
 
     public function getLoginHeatmap(): Collection
     {
-        return DB::table('user_login_log')
+        return DB::table('user_login_logs')
             ->select(
                 DB::raw('DAYOFWEEK(created_at) as day_of_week'),
                 DB::raw('HOUR(created_at) as hour'),
                 DB::raw('count(*) as count')
             )
             ->where('created_at', '>=', now()->subDays(30))
+            ->where('status', 'success')
             ->groupBy('day_of_week', 'hour')
             ->get();
     }

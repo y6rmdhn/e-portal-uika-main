@@ -15,8 +15,8 @@ class RoleDistributionResource extends JsonResource
     public function toArray($request): array
     {
         return [
-            'role'  => $this->resource->role,
-            'total' => $this->resource->total,
+            'role'  => $this->resource['role'],
+            'total' => $this->resource['total'],
         ];
     }
 }

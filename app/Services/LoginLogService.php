@@ -70,7 +70,7 @@ class LoginLogService
     public function getSuspiciousIps(): array
     {
         return Cache::remember('security.suspicious_ips', now()->addMinutes(5), function () {
-            return $this->repository->getSuspiciousIps(self::SUSPICIOUS_THRESHOLD, 60);
+            return $this->repository->getSuspiciousIps(self::SUSPICIOUS_THRESHOLD, 60)->toArray();
         });
     }
 
@@ -104,7 +104,9 @@ class LoginLogService
             ? $this->ipLockKey($identifier)
             : $this->emailLockKey($identifier);
 
-        return (int) Cache::getTimeToLive($key);
+        if (!Cache::has($key)) return 0;
+
+        return self::LOCKOUT_MINUTES * 60;
     }
 
     /**

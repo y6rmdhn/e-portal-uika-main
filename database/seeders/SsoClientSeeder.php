@@ -5,7 +5,6 @@ namespace Database\Seeders;
 use App\Models\SsoClient;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Hash;
 
 class SsoClientSeeder extends Seeder
 {
@@ -21,7 +20,7 @@ class SsoClientSeeder extends Seeder
             [
                 'name'               => 'SIAKAD UIKA',
                 'description'        => 'Sistem Informasi Akademik Universitas Ibn Khaldun Bogor',
-                'callback_url'       => 'https://siakad-uika.ac.id',
+                'callback_url'       => 'http://localhost:5174/sso/callback',
                 'allowed_module_ids' => null, // null = akses semua modul (karena SIAKAD adalah app utama)
                 'app_module_name'    => 'SIAKAD (Akademik)',
                 'client_id'          => '9a3d46a8-8e65-4f40-9a21-987654321abc',
@@ -71,7 +70,7 @@ class SsoClientSeeder extends Seeder
                 'app_module_id'      => $appModule ? $appModule->id : null,
                 'name'               => $clientData['name'],
                 'client_id'          => $clientData['client_id'],
-                'client_secret'      => Hash::make($plainSecret),
+                'client_secret'      => hash('sha256', $plainSecret), // Hashed using SHA-256 to match verifySecret
                 'description'        => $clientData['description'],
                 'callback_url'       => $clientData['callback_url'],
                 'allowed_module_ids' => $clientData['allowed_module_ids'],

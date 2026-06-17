@@ -2,107 +2,87 @@
 
 namespace App\Models;
 
-use Illuminate\Contracts\Auth\MustVerifyEmail;
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Tymon\JWTAuth\Contracts\JWTSubject;
 use Spatie\Permission\Traits\HasRoles;
 
-class User extends Authenticatable implements JWTSubject, MustVerifyEmail
+class User extends Authenticatable implements JWTSubject
 {
-    use HasFactory, Notifiable, HasRoles, HasUuids;
+    use Notifiable, HasRoles;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var string[]
-     */
+    protected $connection  = 'ucl';
+    protected $table       = 'tb_users';
+    protected $primaryKey  = 'user_id';
+    public    $incrementing = false;
+    protected $keyType     = 'string';
+
     protected $fillable = [
-        'name',
+        'user_id',
         'email',
+        'password',
+        'role',
         'nidn',
-        'nip',
         'npm',
-        'password',
-        'phone',
-        'location',
-        'about_me',
-        'is_active',
-        'image',
-        "role_id",
-        'unit_id',
-        'last_login_at',
+        'isverified',
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var array
-     */
     protected $hidden = [
-        'id',
         'password',
-        'remember_token',
     ];
 
     /**
-     * The attributes that should be cast.
-     *
-     * @var array
+     * Relationship to local E-Portal unit & jabatan mappings.
      */
-    protected $casts = [
-        'email_verified_at' => 'datetime',
-        'last_login_at' => 'datetime',
-    ];
-
-    public function uniqueIds()
+    public function userJabatanUnits()
     {
-        return ['public_id'];
+        return $this->hasMany(UserJabatanUnit::class, 'user_id', 'user_id');
     }
 
-    public function getRouteKeyName()
+    /**
+     * Virtual attribute for unit_id to maintain compatibility with single-unit code.
+     */
+    public function getUnitIdAttribute()
     {
-        return 'public_id';
+        return $this->userJabatanUnits->first()?->unit_id;
     }
 
-    public function role()
+    /**
+     * Virtual attribute for unit model to maintain compatibility with single-unit code.
+     */
+    public function getUnitAttribute()
     {
-        return $this->belongsTo(Role::class, 'role_id');
-    }
-
-    public function unit()
-    {
-        return $this->belongsTo(Unit::class, 'unit_id');
+        return $this->userJabatanUnits->first()?->unit;
     }
 
     public function getJWTIdentifier()
     {
-        return $this->getKey();
+        return $this->getKey(); // user_id
     }
 
     public function getJWTCustomClaims()
     {
         return [
-            'id' => $this->public_id,
-            'email' => $this->email,
-            'role' => $this->role,
-            'unit_id' => $this->unit_id,
-            'unit' => $this->unit ? [
-                'id' => $this->unit->id,
-                'code' => $this->unit->code,
+            'id'            => $this->user_id,
+            'email'         => $this->email,
+            'role'          => $this->role,
+            'nidn'          => $this->nidn,
+            'npm'           => $this->npm,
+            'unit_id'       => $this->unit_id,
+            'unit'          => $this->unit ? [
+                'id'        => $this->unit->id,
+                'code'      => $this->unit->code,
                 'nama_unit' => $this->unit->nama_unit,
             ] : null,
             'jabatan_units' => $this->roles->map(function ($role) {
                 return [
-                    'id' => $role->id,
-                    'jabatan_id' => $role->id,
+                    'id'           => $role->id,
+                    'jabatan_id'   => $role->id,
                     'nama_jabatan' => $role->name,
-                    'unit_id' => $this->unit_id,
-                    'code_unit' => $this->unit?->code,
-                    'nama_unit' => $this->unit?->nama_unit,
-                    'keterangan' => null,
+                    'unit_id'      => $this->unit_id,
+                    'code_unit'    => $this->unit?->code,
+                    'nama_unit'    => $this->unit?->nama_unit,
+                    'keterangan'   => null,
                 ];
             })->toArray(),
         ];

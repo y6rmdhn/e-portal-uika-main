@@ -15,24 +15,20 @@ class MyModuleController extends Controller
      *
      * Mengembalikan daftar App Module yang bisa diakses oleh user yang sedang login,
      * berdasarkan permission yang dimiliki rolenya.
-     *
-     * Logika:
-     * - Ambil semua permission yang dimiliki user (via Spatie HasRoles).
-     * - Dari permission tersebut, ambil unique appModule_id.
-     * - Kembalikan AppModule berdasarkan id-id tersebut.
-     * - Jika user adalah admin/super-admin, kembalikan SEMUA modul.
      */
     public function index(Request $request)
     {
         $user = JWTAuth::user();
 
+        $isGlobalAdmin = in_array(strtolower($user->role ?? ''), ['admin', 'super-admin']) || $user->hasAnyRole(['admin', 'super-admin']);
+
         // Admin & super-admin dapat akses ke semua modul
-        if ($user->hasAnyRole(['admin', 'super-admin'])) {
+        if ($isGlobalAdmin) {
             $modules = AppModule::orderBy('name')->get();
 
             return ResponseBuilder::success(200, 'success', [
                 'is_admin'   => true,
-                'role'       => $user->getRoleNames()->first(),
+                'role'       => $user->getRoleNames()->first() ?? $user->role,
                 'modules'    => $modules,
             ]);
         }
@@ -50,7 +46,7 @@ class MyModuleController extends Controller
 
         return ResponseBuilder::success(200, 'success', [
             'is_admin'   => false,
-            'role'       => $user->getRoleNames()->first(),
+            'role'       => $user->getRoleNames()->first() ?? $user->role,
             'modules'    => $modules,
         ]);
     }
@@ -59,14 +55,6 @@ class MyModuleController extends Controller
      * GET /api/my-modules/{appModuleId}/roles
      *
      * Mengembalikan daftar role yang dimiliki user untuk modul tertentu.
-     *
-     * Logika:
-     * - Ambil semua permission user yang appModule_id = $appModuleId.
-     * - Dari permission tersebut, cari role mana yang user miliki
-     *   dan role itu memiliki permission tersebut.
-     * - Return list unik role: [{ role_id, role_name }]
-     *
-     * Jika admin/super-admin → kembalikan semua role mereka.
      */
     public function getRolesForModule($appModuleId)
     {
@@ -78,8 +66,10 @@ class MyModuleController extends Controller
             return ResponseBuilder::success(404, 'App module not found', []);
         }
 
+        $isGlobalAdmin = in_array(strtolower($user->role ?? ''), ['admin', 'super-admin']) || $user->hasAnyRole(['admin', 'super-admin']);
+
         // Admin/super-admin: kembalikan semua role yang mereka miliki
-        if ($user->hasAnyRole(['admin', 'super-admin'])) {
+        if ($isGlobalAdmin) {
             $roles = $user->roles()
                 ->select('id', 'name')
                 ->get()

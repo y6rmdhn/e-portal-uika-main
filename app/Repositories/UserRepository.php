@@ -3,139 +3,156 @@
 namespace App\Repositories;
 
 use App\Models\User;
+use App\Models\UserJabatanUnit;
 use App\Repositories\Interfaces\UserRepositoryInterface;
 use Illuminate\Support\Facades\Hash;
-use Spatie\Permission\Models\Role;
+use Illuminate\Support\Str;
 
 class UserRepository implements UserRepositoryInterface
 {
-    protected User $model;
-
-    public function __construct(User $model)
-    {
-        $this->model = $model;
-    }
-
     public function getAllUsers(array $filters = [])
     {
-        $query = $this->model->with(['roles', 'unit']);
+        $query = User::with(['userJabatanUnits.unit', 'userJabatanUnits.jabatan', 'roles'])
+            ->whereNull('deleted_at');
 
-        // Filter by specific jabatan (role)
         if (!empty($filters['role'])) {
-            $query->whereHas('roles', fn($q) => $q->where('name', $filters['role']));
+            $query->where('role', $filters['role']);
         }
 
-        // Filter by active status
-        if (isset($filters['is_active'])) {
-            $query->where('is_active', $filters['is_active']);
-        }
-
-        // Search by name or email
         if (!empty($filters['search'])) {
             $search = $filters['search'];
             $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                    ->orWhere('email', 'like', "%{$search}%")
-                    ->orWhere('npm', 'like', "%{$search}%")
-                    ->orWhere('nip', 'like', "%{$search}%")
-                    ->orWhere('nidn', 'like', "%{$search}%");
+                $q->where('email', 'like', "%{$search}%")
+                  ->orWhere('nidn', 'like', "%{$search}%")
+                  ->orWhere('npm', 'like', "%{$search}%");
             });
         }
 
         $perPage = $filters['per_page'] ?? 10;
-
-        return $query->latest()->paginate($perPage);
+        return $query->orderByDesc('created_at')->paginate($perPage);
     }
 
     public function findById(string $id)
     {
-        return $this->model->with(['roles', 'unit'])->where('public_id', $id)->firstOrFail();
+        return User::with(['userJabatanUnits.unit', 'userJabatanUnits.jabatan', 'roles'])
+            ->where('user_id', $id)
+            ->whereNull('deleted_at')
+            ->firstOrFail();
     }
 
     public function findByEmail(string $email)
     {
-        return $this->model->where('email', $email)->first();
+        return User::with(['userJabatanUnits.unit', 'userJabatanUnits.jabatan', 'roles'])
+            ->where('email', $email)
+            ->whereNull('deleted_at')
+            ->first();
     }
 
     public function create(array $data): object
     {
-        $user = $this->model->create([
-            'name'      => $data['name'],
-            'email'     => $data['email'],
-            'password'  => Hash::make($data['password']),
-            'phone'     => $data['phone'] ?? null,
-            'location'  => $data['location'] ?? null,
-            'about_me'  => $data['about_me'] ?? null,
-            'is_active' => $data['is_active'] ?? true,
-            'nidn'      => $data['nidn'] ?? null,
-            'nip'       => $data['nip'] ?? null,
-            'npm'       => $data['npm'] ?? null,
-            'image'     => $data['image'] ?? null,
-            'unit_id'   => $data['unit_id'] ?? null,
+        $uuid = Str::uuid()->toString();
+
+        $user = User::create([
+            'user_id'    => $uuid,
+            'email'      => $data['email'],
+            'password'   => Hash::make($data['password']),
+            'role'       => $data['role'],
+            'nidn'       => $data['nidn'] ?? null,
+            'npm'        => $data['npm']  ?? null,
+            'isverified' => true,
         ]);
 
+        // Sync local unit mapping
+        if (!empty($data['unit_id']) && !empty($data['roles'])) {
+            $roleName = $data['roles'][0] ?? null;
+            $jabatan = \App\Models\Jabatan::where('name', $roleName)->first();
+            if ($jabatan) {
+                UserJabatanUnit::firstOrCreate([
+                    'user_id'    => $uuid,
+                    'jabatan_id' => $jabatan->id,
+                    'unit_id'    => $data['unit_id'],
+                ]);
+            }
+        }
+
+        // Sync Spatie roles
         if (!empty($data['roles'])) {
             $user->syncRoles($data['roles']);
         }
 
-        return $user->load('roles');
+        return $this->findById($uuid);
     }
 
     public function update(string $id, array $data): object
     {
         $user = $this->findById($id);
 
-        $updateData = array_filter([
-            'name'      => $data['name'] ?? null,
-            'email'     => $data['email'] ?? null,
-            'phone'     => $data['phone'] ?? null,
-            'location'  => $data['location'] ?? null,
-            'about_me'  => $data['about_me'] ?? null,
-            'is_active' => $data['is_active'] ?? null,
-            'nidn'      => $data['nidn'] ?? null,
-            'nip'       => $data['nip'] ?? null,
-            'npm'       => $data['npm'] ?? null,
-            'image'     => $data['image'] ?? null,
-        ], function ($value) {
-            return !is_null($value);
-        });
+        $updateData = [];
+        if (!empty($data['email']))    $updateData['email'] = $data['email'];
+        if (!empty($data['role']))     $updateData['role']  = $data['role'];
+        if (!empty($data['nidn']))     $updateData['nidn']  = $data['nidn'];
+        if (!empty($data['npm']))      $updateData['npm']   = $data['npm'];
+        if (!empty($data['password'])) $updateData['password'] = Hash::make($data['password']);
 
-        if (array_key_exists('unit_id', $data)) {
-            $updateData['unit_id'] = $data['unit_id'];
+        if (!empty($updateData)) {
+            $user->update($updateData);
         }
 
-        if (!empty($data['password'])) {
-            $updateData['password'] = Hash::make($data['password']);
+        // Update local unit & role mapping
+        if (isset($data['unit_id']) && isset($data['roles'])) {
+            $roleName = $data['roles'][0] ?? null;
+            $jabatan = \App\Models\Jabatan::where('name', $roleName)->first();
+            if ($jabatan) {
+                UserJabatanUnit::where('user_id', $id)->delete();
+                UserJabatanUnit::create([
+                    'user_id'    => $id,
+                    'jabatan_id' => $jabatan->id,
+                    'unit_id'    => $data['unit_id'],
+                ]);
+            }
         }
 
-        $user->update($updateData);
-
-        // Sync roles jika ada perubahan
+        // Sync Spatie roles
         if (isset($data['roles'])) {
             $user->syncRoles($data['roles']);
         }
 
-        return $user->fresh(['roles', 'unit']);
+        return $this->findById($id);
     }
 
     public function delete(string $id): bool
     {
         $user = $this->findById($id);
+        $user->update(['deleted_at' => now()]);
+
+        // Clean local mappings
+        UserJabatanUnit::where('user_id', $id)->delete();
         $user->roles()->detach();
-        return $user->delete();
+
+        return true;
     }
 
     public function toggleActive(string $id): object
     {
         $user = $this->findById($id);
-        $user->update(['is_active' => !$user->is_active]);
-        return $user->fresh('roles');
+        $user->update(['isverified' => !$user->isverified]);
+        return $this->findById($id);
     }
 
     public function resetPassword(string $id, string $password): object
     {
         $user = $this->findById($id);
         $user->update(['password' => Hash::make($password)]);
-        return $user->fresh('roles');
+        return $this->findById($id);
+    }
+
+    public function findByNidn(string $nidn)
+    {
+        return User::where('nidn', $nidn)->whereNull('deleted_at')->first();
+    }
+
+    public function findByNpm(string $npm)
+    {
+        return User::where('npm', $npm)->whereNull('deleted_at')->first();
     }
 }
