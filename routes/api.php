@@ -11,10 +11,21 @@ use App\Http\Controllers\Api\PermissionController;
 use App\Http\Controllers\Api\RoleHasPermissionController;
 use App\Http\Controllers\Api\MyModuleController;
 use App\Http\Controllers\Api\SsoController;
+use App\Http\Controllers\Api\JabatanController;
+use App\Http\Controllers\Api\UnitController;
+use App\Http\Controllers\Api\UserJabatanUnitController;
 use App\Http\Controllers\Api\SsoIntegrationController;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+
+// ==========================================
+// SSO ROUTES
+// ==========================================
+Route::get('/sso/capabilities', [SsoController::class, 'capabilities']);
+Route::post('/sso/introspect', [SsoController::class, 'introspect'])->middleware('sso.client');
+Route::get('/sso/verify-access', [SsoController::class, 'verifyAccess'])->middleware(['jwt.verify', 'sso.client']);
+
 
 // ==========================================
 // SSO ROUTES
@@ -34,6 +45,9 @@ Route::post('/password/reset', 'Api\AuthController@resetPassword');
 Route::get('/auth/google/redirect', 'Api\AuthController@redirectToGoogle');
 Route::get('/auth/google/callback', 'Api\AuthController@handleGoogleCallback');
 Route::get('/auth/token-from-cookie', 'Api\AuthController@tokenFromCookie');
+Route::get('/validate/nidn', 'Api\AuthController@validateNidn');
+Route::get('/validate/nip', 'Api\AuthController@validateNip');
+Route::get('/validate/npm', 'Api\AuthController@validateNpm');
 
 Route::get('/email/verify/{id}/{hash}', function (Request $request, $id) {
     $user = User::findOrFail($id);
@@ -56,6 +70,11 @@ Route::group(['middleware' => ['jwt.verify']], function () {
     Route::get('/app_modul', 'Api\AppModuleController@index');
     Route::get('/call_user', 'Api\AuthController@call_user');
     Route::get('/my-modules', [MyModuleController::class, 'index']);
+
+    // ── SSO: Daftar role yang dimiliki user di modul tertentu ──────────────────
+    Route::get('/my-modules/{appModuleId}/roles', [MyModuleController::class, 'getRolesForModule']);
+
+    // Route SSO untuk redirect ke app (Butuh Auth)
     Route::get('/sso/redirect', [AuthController::class, 'redirect']);
 
     Route::prefix('profile')->group(function () {
@@ -110,6 +129,29 @@ Route::group(['middleware' => ['jwt.verify']], function () {
             Route::delete('/{id}', [RoleController::class, 'destroy'])->name('destroy');
         });
 
+        // ── Jabatans ─────────────────────────────────────────────────────────────
+        // Route::prefix('jabatans')->name('jabatans.')->group(function () {
+        //     Route::get('/', [JabatanController::class, 'index'])->name('index');
+        //     Route::post('/', [JabatanController::class, 'store'])->name('store');
+        //     Route::get('/{id}', [JabatanController::class, 'show'])->name('show');
+        //     Route::put('/{id}', [JabatanController::class, 'update'])->name('update');
+        //     Route::delete('/{id}', [JabatanController::class, 'destroy'])->name('destroy');
+        // });
+
+        // ── Units ────────────────────────────────────────────────────────────────
+        // Route::prefix('units')->name('units.')->group(function () {
+        //     Route::get('/', [UnitController::class, 'index'])->name('index');
+        //     Route::post('/', [UnitController::class, 'store'])->name('store');
+        //     Route::get('/{id}', [UnitController::class, 'show'])->name('show');
+        //     Route::put('/{id}', [UnitController::class, 'update'])->name('update');
+        //     Route::delete('/{id}', [UnitController::class, 'destroy'])->name('destroy');
+        // });
+
+        // ── User Unit Assignments ───────────────────────────────────────────────
+        Route::post('/{id}/assign-unit', [UserController::class, 'assignUnit'])->name('assign-unit');
+        Route::post('/{id}/unassign-unit', [UserController::class, 'unassignUnit'])->name('unassign-unit');
+
+        // ── Permissions ──────────────────────────────────────────────────────────
         Route::prefix('permissions')->name('permissions.')->group(function () {
             Route::get('/', [PermissionController::class, 'index'])->name('index');
             Route::post('/bulk', [PermissionController::class, 'bulkStore'])->name('bulk-store');
@@ -136,9 +178,11 @@ Route::group(['middleware' => ['jwt.verify']], function () {
             Route::delete('/{id}', [SsoIntegrationController::class, 'destroy'])->name('destroy');
         });
 
+        // Wildcard user routes moved to the end to prevent hijacking static routes
         Route::get('/{id}', [UserController::class, 'show'])->name('show');
         Route::match(['POST', 'PUT'], '/{id}', [UserController::class, 'update'])->name('update');
         Route::delete('/{id}', [UserController::class, 'destroy'])->name('destroy');
+
         Route::patch('/{id}/toggle-active', [UserController::class, 'toggleActive'])->name('toggle-active');
         Route::post('/{id}/reset-password', [UserController::class, 'resetPassword'])->name('reset-password');
         Route::get('/{id}/activity-logs', [UserController::class, 'activityLogs'])->name('activity-logs');

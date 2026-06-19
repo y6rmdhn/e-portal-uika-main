@@ -34,4 +34,11 @@ return [
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
         'redirect' => env('GOOGLE_REDIRECT_URI'),
     ],
+    'simpeg' => [
+        'url'     => env('SIMPEG_API_URL', 'http://localhost:3000'),
+        'api_key' => env('SIMPEG_API_KEY'),
+    ],
+    'siakad' => [
+        'url' => env('SIAKAD_API_URL', 'http://localhost:3000'),
+    ],
 ];

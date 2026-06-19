@@ -527,7 +527,8 @@ class AuthController extends Controller
             }
 
             // Get role model details for metadata
-            $roleModel = \App\Models\Role::find($role_id);
+            // $roleModel = \App\Models\Role::find($role_id);
+            $roleModel = null;
 
             // Calculate the permissions for this user, module, and role context
             $permissions = $this->getPermissionsForContext($user, $appModule_id, $role_id);
