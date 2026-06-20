@@ -38,71 +38,136 @@ class AuthController extends Controller
     ) {}
 
     public function register(Request $request)
-{
-    $validator = Validator::make($request->all(), [
-        'email'    => 'required|email',
-        'password' => 'required|string|min:8|confirmed',
-        'role'     => 'required|in:Mahasiswa,Dosen,Admin,Pegawai',
-        'nidn'     => 'nullable|string',
-        'npm'      => 'nullable|string',
-    ]);
+    {
+        $validator = Validator::make($request->all(), [
+            'email'    => 'required|email',
+            'password' => 'required|string|min:8|confirmed',
+            'role'     => 'required|in:Mahasiswa,Dosen,Admin,Pegawai,Dosen_Ext',
+            'nidn'     => 'nullable|string',
+            'npm'      => 'nullable|string',
+            'nama'     => 'nullable|string|max:255', // ← nama dari hasil validasi (Mahasiswa/Dosen/Pegawai)
+            // Field khusus Dosen Eksternal
+            'nama_lengkap'  => 'required_if:role,Dosen_Ext|nullable|string|max:255',
+            'nik'           => 'required_if:role,Dosen_Ext|nullable|string|max:60',
+            'instansi'      => 'required_if:role,Dosen_Ext|nullable|string|max:255',
+            'jenkel'        => 'nullable|in:L,P',
+            'tanggal_lahir' => 'nullable|date',
+            'tempat_lahir'  => 'nullable|string|max:255',
+            'agama'         => 'nullable|string|max:25',
+            'no_hp'         => 'nullable|string|max:50',
+        ]);
 
-    if ($validator->fails()) {
-        return response()->json(['status' => 422, 'message' => $validator->errors()->first()], 422);
-    }
+        if ($validator->fails()) {
+            return response()->json(['status' => 422, 'message' => $validator->errors()->first()], 422);
+        }
 
-    // Cek email sudah ada di UCL
-    $exists = DB::connection('ucl')
-        ->table('tb_users')
-        ->where('email', $request->email)
-        ->whereNull('deleted_at')
-        ->exists();
+        $isDosenExt = $request->role === 'Dosen_Ext';
 
-    if ($exists) {
-        return response()->json(['status' => 422, 'message' => 'Email sudah terdaftar.'], 422);
-    }
-
-    // Cek NPM sudah terdaftar
-    if ($request->npm) {
-        $npmExists = DB::connection('ucl')
+        // Cek email sudah ada di UCL
+        $exists = DB::connection('ucl')
             ->table('tb_users')
-            ->where('npm', $request->npm)
+            ->where('email', $request->email)
             ->whereNull('deleted_at')
             ->exists();
 
-        if ($npmExists) {
-            return response()->json(['status' => 422, 'message' => 'NPM sudah terdaftar. Silakan login.'], 422);
+        if ($exists) {
+            return response()->json(['status' => 422, 'message' => 'Email sudah terdaftar.'], 422);
         }
-    }
 
-    // Cek NIDN sudah terdaftar
-    if ($request->nidn) {
-        $nidnExists = DB::connection('ucl')
-            ->table('tb_users')
-            ->where('nidn', $request->nidn)
-            ->whereNull('deleted_at')
-            ->exists();
+        // Cek NIK duplikat di tb_data_pribadi (khusus Dosen_Ext)
+        if ($isDosenExt && $request->nik) {
+            $nikExists = DB::connection('ucl')
+                ->table('tb_data_pribadi')
+                ->where('nik', $request->nik)
+                ->exists();
 
-        if ($nidnExists) {
-            return response()->json(['status' => 422, 'message' => 'NIDN sudah terdaftar. Silakan login.'], 422);
+            if ($nikExists) {
+                return response()->json(['status' => 422, 'message' => 'NIK/NIP sudah terdaftar.'], 422);
+            }
         }
+
+        $nidnToSave = $isDosenExt ? null : $request->nidn;
+        $npmToSave  = $isDosenExt ? null : $request->npm;
+
+        if ($npmToSave) {
+            $npmExists = DB::connection('ucl')
+                ->table('tb_users')
+                ->where('npm', $npmToSave)
+                ->whereNull('deleted_at')
+                ->exists();
+
+            if ($npmExists) {
+                return response()->json(['status' => 422, 'message' => 'NPM sudah terdaftar. Silakan login.'], 422);
+            }
+        }
+
+        if ($nidnToSave) {
+            $nidnExists = DB::connection('ucl')
+                ->table('tb_users')
+                ->where('nidn', $nidnToSave)
+                ->whereNull('deleted_at')
+                ->exists();
+
+            if ($nidnExists) {
+                return response()->json(['status' => 422, 'message' => 'NIDN sudah terdaftar. Silakan login.'], 422);
+            }
+        }
+
+        $isverified = $isDosenExt ? false : true;
+        $userId = (string) \Illuminate\Support\Str::uuid();
+
+        DB::beginTransaction();
+        try {
+            // Insert ke tb_users
+            DB::connection('ucl')->table('tb_users')->insert([
+                'user_id'    => $userId,
+                'email'      => $request->email,
+                'password'   => Hash::make($request->password),
+                'role'       => $request->role,
+                'nidn'       => $nidnToSave,
+                'npm'        => $npmToSave,
+                'isverified' => $isverified,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            if ($isDosenExt) {
+                // Dosen Eksternal — form lengkap
+                DB::connection('ucl')->table('tb_data_pribadi')->insert([
+                    'dp_id'         => (string) \Illuminate\Support\Str::uuid(),
+                    'user_id'       => $userId,
+                    'nama_lengkap'  => $request->nama_lengkap,
+                    'jenkel'        => $request->jenkel,
+                    'tanggal_lahir' => $request->tanggal_lahir,
+                    'tempat_lahir'  => $request->tempat_lahir,
+                    'agama'         => $request->agama,
+                    'email'         => $request->email,
+                    'no_hp'         => $request->no_hp,
+                    'nik'           => $request->nik,
+                    'instansi_ext'  => $request->instansi,
+                ]);
+            } else {
+                // Mahasiswa/Dosen/Pegawai — minimal nama dari hasil validasi
+                DB::connection('ucl')->table('tb_data_pribadi')->insert([
+                    'dp_id'        => (string) \Illuminate\Support\Str::uuid(),
+                    'user_id'      => $userId,
+                    'nama_lengkap' => $request->nama,
+                    'email'        => $request->email,
+                ]);
+            }
+
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['status' => 500, 'message' => 'Registrasi gagal: ' . $e->getMessage()], 500);
+        }
+
+        $message = $isDosenExt
+            ? 'Registrasi berhasil. Akun Anda menunggu verifikasi oleh admin.'
+            : 'Registrasi berhasil.';
+
+        return response()->json(['status' => 201, 'message' => $message], 201);
     }
-
-    // Insert ke tb_users UCL
-    DB::connection('ucl')->table('tb_users')->insert([
-        'user_id'    => \Illuminate\Support\Str::uuid(),
-        'email'      => $request->email,
-        'password'   => Hash::make($request->password),
-        'role'       => $request->role,
-        'nidn'       => $request->nidn,
-        'npm'        => $request->npm,
-        'isverified' => true,
-        'created_at' => now(),
-        'updated_at' => now(),
-    ]);
-
-    return response()->json(['status' => 201, 'message' => 'Registrasi berhasil.'], 201);
-}
 
 
     public function auth(Request $request)
