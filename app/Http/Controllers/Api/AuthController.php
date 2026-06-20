@@ -567,6 +567,47 @@ class AuthController extends Controller
         }
     }
 
+    public function validateNidn(Request $request)
+{
+    $nidn = $request->query('nidn');
+    if (!$nidn) return response()->json(['status' => 400, 'valid' => false, 'message' => 'NIDN wajib diisi.'], 400);
+
+    try {
+        $response = Http::withHeaders(['X-API-Key' => config('services.simpeg.api_key')])
+            ->get(config('services.simpeg.url') . '/api/external/validate/nidn', ['nidn' => $nidn]);
+        return response()->json($response->json(), $response->status());
+    } catch (\Exception $e) {
+        return response()->json(['status' => 500, 'valid' => false, 'message' => 'Gagal konek ke SIMPEG.'], 500);
+    }
+}
+
+public function validateNip(Request $request)
+{
+    $nip = $request->query('nip');
+    if (!$nip) return response()->json(['status' => 400, 'valid' => false, 'message' => 'NIP wajib diisi.'], 400);
+
+    try {
+        $response = Http::withHeaders(['X-API-Key' => config('services.simpeg.api_key')])
+            ->get(config('services.simpeg.url') . '/api/external/validate/nip', ['nip' => $nip]);
+        return response()->json($response->json(), $response->status());
+    } catch (\Exception $e) {
+        return response()->json(['status' => 500, 'valid' => false, 'message' => 'Gagal konek ke SIMPEG.'], 500);
+    }
+}
+
+public function validateNpm(Request $request)
+{
+    $npm = $request->query('npm');
+    if (!$npm) return response()->json(['status' => 400, 'valid' => false, 'message' => 'NPM wajib diisi.'], 400);
+
+    try {
+        $response = Http::get(config('services.siakad.url') . '/api/external/validate/npm', ['npm' => $npm]);
+        return response()->json($response->json(), $response->status());
+    } catch (\Exception $e) {
+        return response()->json(['status' => 500, 'valid' => false, 'message' => 'Gagal konek ke SIAKAD.'], 500);
+    }
+}
+
     private function getPermissionsForContext($user, $appModuleId, $roleId): array
     {
         // If user is admin/super-admin globally, grant all permissions of the module
