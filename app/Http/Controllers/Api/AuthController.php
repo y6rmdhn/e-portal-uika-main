@@ -38,45 +38,71 @@ class AuthController extends Controller
     ) {}
 
     public function register(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'email'    => 'required|email',
-            'password' => 'required|string|min:8|confirmed',
-            'role'     => 'required|in:Mahasiswa,Dosen,Admin',
-            'nidn'     => 'nullable|string',
-            'npm'      => 'nullable|string',
-        ]);
+{
+    $validator = Validator::make($request->all(), [
+        'email'    => 'required|email',
+        'password' => 'required|string|min:8|confirmed',
+        'role'     => 'required|in:Mahasiswa,Dosen,Admin,Pegawai',
+        'nidn'     => 'nullable|string',
+        'npm'      => 'nullable|string',
+    ]);
 
-        if ($validator->fails()) {
-            return response()->json(['status' => 422, 'message' => $validator->errors()->first()], 422);
-        }
+    if ($validator->fails()) {
+        return response()->json(['status' => 422, 'message' => $validator->errors()->first()], 422);
+    }
 
-        // Cek email sudah ada di UCL
-        $exists = DB::connection('ucl')
+    // Cek email sudah ada di UCL
+    $exists = DB::connection('ucl')
+        ->table('tb_users')
+        ->where('email', $request->email)
+        ->whereNull('deleted_at')
+        ->exists();
+
+    if ($exists) {
+        return response()->json(['status' => 422, 'message' => 'Email sudah terdaftar.'], 422);
+    }
+
+    // Cek NPM sudah terdaftar
+    if ($request->npm) {
+        $npmExists = DB::connection('ucl')
             ->table('tb_users')
-            ->where('email', $request->email)
+            ->where('npm', $request->npm)
             ->whereNull('deleted_at')
             ->exists();
 
-        if ($exists) {
-            return response()->json(['status' => 422, 'message' => 'Email sudah terdaftar.'], 422);
+        if ($npmExists) {
+            return response()->json(['status' => 422, 'message' => 'NPM sudah terdaftar. Silakan login.'], 422);
         }
-
-        // Insert ke tb_users UCL
-        DB::connection('ucl')->table('tb_users')->insert([
-            'user_id'    => \Illuminate\Support\Str::uuid(),
-            'email'      => $request->email,
-            'password'   => Hash::make($request->password),
-            'role'       => $request->role,
-            'nidn'       => $request->nidn,
-            'npm'        => $request->npm,
-            'isverified' => true, // langsung verified
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        return response()->json(['status' => 201, 'message' => 'Registrasi berhasil.'], 201);
     }
+
+    // Cek NIDN sudah terdaftar
+    if ($request->nidn) {
+        $nidnExists = DB::connection('ucl')
+            ->table('tb_users')
+            ->where('nidn', $request->nidn)
+            ->whereNull('deleted_at')
+            ->exists();
+
+        if ($nidnExists) {
+            return response()->json(['status' => 422, 'message' => 'NIDN sudah terdaftar. Silakan login.'], 422);
+        }
+    }
+
+    // Insert ke tb_users UCL
+    DB::connection('ucl')->table('tb_users')->insert([
+        'user_id'    => \Illuminate\Support\Str::uuid(),
+        'email'      => $request->email,
+        'password'   => Hash::make($request->password),
+        'role'       => $request->role,
+        'nidn'       => $request->nidn,
+        'npm'        => $request->npm,
+        'isverified' => true,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    return response()->json(['status' => 201, 'message' => 'Registrasi berhasil.'], 201);
+}
 
 
     public function auth(Request $request)
