@@ -41,14 +41,26 @@ class AuthController extends Controller
         $validator = Validator::make($request->all(), [
             'email'    => 'required|email',
             'password' => 'required|string|min:8|confirmed',
-            'role'     => 'required|in:Mahasiswa,Dosen,Admin',
+            'role'     => 'required|in:Mahasiswa,Dosen,Admin,Pegawai,Dosen_Ext',
             'nidn'     => 'nullable|string',
             'npm'      => 'nullable|string',
+            'nama'     => 'nullable|string|max:255', // ← nama dari hasil validasi (Mahasiswa/Dosen/Pegawai)
+            // Field khusus Dosen Eksternal
+            'nama_lengkap'  => 'required_if:role,Dosen_Ext|nullable|string|max:255',
+            'nik'           => 'required_if:role,Dosen_Ext|nullable|string|max:60',
+            'instansi'      => 'required_if:role,Dosen_Ext|nullable|string|max:255',
+            'jenkel'        => 'nullable|in:L,P',
+            'tanggal_lahir' => 'nullable|date',
+            'tempat_lahir'  => 'nullable|string|max:255',
+            'agama'         => 'nullable|string|max:25',
+            'no_hp'         => 'nullable|string|max:50',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['status' => 422, 'message' => $validator->errors()->first()], 422);
         }
+
+        $isDosenExt = $request->role === 'Dosen_Ext';
 
         // Cek email sudah ada di UCL
         $exists = DB::connection('ucl')
@@ -61,20 +73,99 @@ class AuthController extends Controller
             return response()->json(['status' => 422, 'message' => 'Email sudah terdaftar.'], 422);
         }
 
-        // Insert ke tb_users UCL
-        DB::connection('ucl')->table('tb_users')->insert([
-            'user_id'    => \Illuminate\Support\Str::uuid(),
-            'email'      => $request->email,
-            'password'   => Hash::make($request->password),
-            'role'       => $request->role,
-            'nidn'       => $request->nidn,
-            'npm'        => $request->npm,
-            'isverified' => true, // langsung verified
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        // Cek NIK duplikat di tb_data_pribadi (khusus Dosen_Ext)
+        if ($isDosenExt && $request->nik) {
+            $nikExists = DB::connection('ucl')
+                ->table('tb_data_pribadi')
+                ->where('nik', $request->nik)
+                ->exists();
 
-        return response()->json(['status' => 201, 'message' => 'Registrasi berhasil.'], 201);
+            if ($nikExists) {
+                return response()->json(['status' => 422, 'message' => 'NIK/NIP sudah terdaftar.'], 422);
+            }
+        }
+
+        $nidnToSave = $isDosenExt ? null : $request->nidn;
+        $npmToSave  = $isDosenExt ? null : $request->npm;
+
+        if ($npmToSave) {
+            $npmExists = DB::connection('ucl')
+                ->table('tb_users')
+                ->where('npm', $npmToSave)
+                ->whereNull('deleted_at')
+                ->exists();
+
+            if ($npmExists) {
+                return response()->json(['status' => 422, 'message' => 'NPM sudah terdaftar. Silakan login.'], 422);
+            }
+        }
+
+        if ($nidnToSave) {
+            $nidnExists = DB::connection('ucl')
+                ->table('tb_users')
+                ->where('nidn', $nidnToSave)
+                ->whereNull('deleted_at')
+                ->exists();
+
+            if ($nidnExists) {
+                return response()->json(['status' => 422, 'message' => 'NIDN sudah terdaftar. Silakan login.'], 422);
+            }
+        }
+
+        $isverified = $isDosenExt ? false : true;
+        $userId = (string) \Illuminate\Support\Str::uuid();
+
+        DB::beginTransaction();
+        try {
+            // Insert ke tb_users
+            DB::connection('ucl')->table('tb_users')->insert([
+                'user_id'    => $userId,
+                'email'      => $request->email,
+                'password'   => Hash::make($request->password),
+                'role'       => $request->role,
+                'nidn'       => $nidnToSave,
+                'npm'        => $npmToSave,
+                'isverified' => $isverified,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            if ($isDosenExt) {
+                // Dosen Eksternal — form lengkap
+                DB::connection('ucl')->table('tb_data_pribadi')->insert([
+                    'dp_id'         => (string) \Illuminate\Support\Str::uuid(),
+                    'user_id'       => $userId,
+                    'nama_lengkap'  => $request->nama_lengkap,
+                    'jenkel'        => $request->jenkel,
+                    'tanggal_lahir' => $request->tanggal_lahir,
+                    'tempat_lahir'  => $request->tempat_lahir,
+                    'agama'         => $request->agama,
+                    'email'         => $request->email,
+                    'no_hp'         => $request->no_hp,
+                    'nik'           => $request->nik,
+                    'instansi_ext'  => $request->instansi,
+                ]);
+            } else {
+                // Mahasiswa/Dosen/Pegawai — minimal nama dari hasil validasi
+                DB::connection('ucl')->table('tb_data_pribadi')->insert([
+                    'dp_id'        => (string) \Illuminate\Support\Str::uuid(),
+                    'user_id'      => $userId,
+                    'nama_lengkap' => $request->nama,
+                    'email'        => $request->email,
+                ]);
+            }
+
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['status' => 500, 'message' => 'Registrasi gagal: ' . $e->getMessage()], 500);
+        }
+
+        $message = $isDosenExt
+            ? 'Registrasi berhasil. Akun Anda menunggu verifikasi oleh admin.'
+            : 'Registrasi berhasil.';
+
+        return response()->json(['status' => 201, 'message' => $message], 201);
     }
 
     public function auth(Request $request)
@@ -297,6 +388,7 @@ class AuthController extends Controller
                     $permissionsByModule[$permission->appModule_id][] = $permission->name;
                 }
             }
+        );
 
             // Filter jika ada appModule_id di query parameter
             $appModuleId = $request->query('appModule_id');
@@ -338,6 +430,7 @@ class AuthController extends Controller
             ], 500);
         }
     }
+}
 
     public function handleGoogleCallback()
     {
@@ -464,7 +557,8 @@ class AuthController extends Controller
             }
 
             // Get role model details for metadata
-            $roleModel = \App\Models\Role::find($role_id);
+            // $roleModel = \App\Models\Role::find($role_id);
+            $roleModel = null;
 
             // Calculate the permissions for this user, module, and role context
             $permissions = $this->getPermissionsForContext($user, $appModule_id, $role_id);
@@ -512,6 +606,47 @@ class AuthController extends Controller
             ], 401);
         }
     }
+
+    public function validateNidn(Request $request)
+{
+    $nidn = $request->query('nidn');
+    if (!$nidn) return response()->json(['status' => 400, 'valid' => false, 'message' => 'NIDN wajib diisi.'], 400);
+
+    try {
+        $response = Http::withHeaders(['X-API-Key' => config('services.simpeg.api_key')])
+            ->get(config('services.simpeg.url') . '/api/external/validate/nidn', ['nidn' => $nidn]);
+        return response()->json($response->json(), $response->status());
+    } catch (\Exception $e) {
+        return response()->json(['status' => 500, 'valid' => false, 'message' => 'Gagal konek ke SIMPEG.'], 500);
+    }
+}
+
+public function validateNip(Request $request)
+{
+    $nip = $request->query('nip');
+    if (!$nip) return response()->json(['status' => 400, 'valid' => false, 'message' => 'NIP wajib diisi.'], 400);
+
+    try {
+        $response = Http::withHeaders(['X-API-Key' => config('services.simpeg.api_key')])
+            ->get(config('services.simpeg.url') . '/api/external/validate/nip', ['nip' => $nip]);
+        return response()->json($response->json(), $response->status());
+    } catch (\Exception $e) {
+        return response()->json(['status' => 500, 'valid' => false, 'message' => 'Gagal konek ke SIMPEG.'], 500);
+    }
+}
+
+public function validateNpm(Request $request)
+{
+    $npm = $request->query('npm');
+    if (!$npm) return response()->json(['status' => 400, 'valid' => false, 'message' => 'NPM wajib diisi.'], 400);
+
+    try {
+        $response = Http::get(config('services.siakad.url') . '/api/external/validate/npm', ['npm' => $npm]);
+        return response()->json($response->json(), $response->status());
+    } catch (\Exception $e) {
+        return response()->json(['status' => 500, 'valid' => false, 'message' => 'Gagal konek ke SIAKAD.'], 500);
+    }
+}
 
     private function getPermissionsForContext($user, $appModuleId, $roleId): array
     {

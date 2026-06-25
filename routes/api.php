@@ -59,6 +59,9 @@ Route::post('/password/reset', 'Api\AuthController@resetPassword');
 Route::get('/auth/google/redirect', 'Api\AuthController@redirectToGoogle');
 Route::get('/auth/google/callback', 'Api\AuthController@handleGoogleCallback');
 Route::get('/auth/token-from-cookie', 'Api\AuthController@tokenFromCookie');
+Route::get('/validate/nidn', 'Api\AuthController@validateNidn');
+Route::get('/validate/nip', 'Api\AuthController@validateNip');
+Route::get('/validate/npm', 'Api\AuthController@validateNpm');
 
 Route::get('/email/verify/{id}/{hash}', function (Request $request, $id) {
     $user = User::findOrFail($id);
