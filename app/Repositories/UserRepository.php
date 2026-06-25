@@ -12,7 +12,7 @@ class UserRepository implements UserRepositoryInterface
 {
     public function getAllUsers(array $filters = [])
     {
-        $query = User::with(['userJabatanUnits.unit', 'userJabatanUnits.jabatan', 'roles'])
+        $query = User::with(['userJabatanUnits.unit', 'userJabatanUnits.jabatan', 'roles', 'unit'])
             ->whereNull('deleted_at');
 
         if (!empty($filters['role'])) {
@@ -34,7 +34,7 @@ class UserRepository implements UserRepositoryInterface
 
     public function findById(string $id)
     {
-        return User::with(['userJabatanUnits.unit', 'userJabatanUnits.jabatan', 'roles'])
+        return User::with(['userJabatanUnits.unit', 'userJabatanUnits.jabatan', 'roles', 'unit'])
             ->where('user_id', $id)
             ->whereNull('deleted_at')
             ->firstOrFail();
@@ -42,7 +42,7 @@ class UserRepository implements UserRepositoryInterface
 
     public function findByEmail(string $email)
     {
-        return User::with(['userJabatanUnits.unit', 'userJabatanUnits.jabatan', 'roles'])
+        return User::with(['userJabatanUnits.unit', 'userJabatanUnits.jabatan', 'roles', 'unit'])
             ->where('email', $email)
             ->whereNull('deleted_at')
             ->first();
@@ -52,32 +52,64 @@ class UserRepository implements UserRepositoryInterface
     {
         $uuid = Str::uuid()->toString();
 
+        $rolesList = $data['roles'] ?? [];
+        $roleName = $data['role'] ?? ($rolesList[0] ?? null);
+
+        $roleId = null;
+        if ($roleName) {
+            $jab = \App\Models\Jabatan::where('name', $roleName)->first();
+            if ($jab) {
+                $roleId = $jab->id;
+            }
+        }
+
+        $deptCode = null;
+        if (!empty($data['unit_id'])) {
+            $unit = \App\Models\Unit::find($data['unit_id']);
+            if ($unit) {
+                $deptCode = $unit->code;
+            }
+        } elseif (!empty($data['department_code'])) {
+            $deptCode = $data['department_code'];
+        }
+
         $user = User::create([
-            'user_id'    => $uuid,
-            'email'      => $data['email'],
-            'password'   => Hash::make($data['password']),
-            'role'       => $data['role'],
-            'nidn'       => $data['nidn'] ?? null,
-            'npm'        => $data['npm']  ?? null,
-            'isverified' => true,
+            'user_id'         => $uuid,
+            'email'           => $data['email'],
+            'password'        => Hash::make($data['password']),
+            'role'            => $roleName,
+            'role_id'         => $roleId,
+            'department_code' => $deptCode,
+            'nidn'            => $data['nidn'] ?? null,
+            'npm'             => $data['npm']  ?? null,
+            'isverified'      => true,
         ]);
 
         // Sync local unit mapping
-        if (!empty($data['unit_id']) && !empty($data['roles'])) {
-            $roleName = $data['roles'][0] ?? null;
-            $jabatan = \App\Models\Jabatan::where('name', $roleName)->first();
-            if ($jabatan) {
-                UserJabatanUnit::firstOrCreate([
-                    'user_id'    => $uuid,
-                    'jabatan_id' => $jabatan->id,
-                    'unit_id'    => $data['unit_id'],
-                ]);
+        $unitId = $data['unit_id'] ?? null;
+        if (!$unitId && $deptCode) {
+            $unit = \App\Models\Unit::where('code', $deptCode)->first();
+            if ($unit) {
+                $unitId = $unit->id;
+            }
+        }
+
+        if ($unitId && !empty($rolesList)) {
+            foreach ($rolesList as $rName) {
+                $jabatan = \App\Models\Jabatan::where('name', $rName)->first();
+                if ($jabatan) {
+                    UserJabatanUnit::create([
+                        'user_id'    => $uuid,
+                        'jabatan_id' => $jabatan->id,
+                        'unit_id'    => $unitId,
+                    ]);
+                }
             }
         }
 
         // Sync Spatie roles
-        if (!empty($data['roles'])) {
-            $user->syncRoles($data['roles']);
+        if (!empty($rolesList)) {
+            $user->syncRoles($rolesList);
         }
 
         return $this->findById($uuid);
@@ -89,32 +121,76 @@ class UserRepository implements UserRepositoryInterface
 
         $updateData = [];
         if (!empty($data['email']))    $updateData['email'] = $data['email'];
-        if (!empty($data['role']))     $updateData['role']  = $data['role'];
         if (!empty($data['nidn']))     $updateData['nidn']  = $data['nidn'];
         if (!empty($data['npm']))      $updateData['npm']   = $data['npm'];
         if (!empty($data['password'])) $updateData['password'] = Hash::make($data['password']);
+
+        // Determine updated roles list first
+        $rolesList = isset($data['roles']) ? $data['roles'] : null;
+
+        // If roles list is updated, automatically set primary role to the first one in the list
+        // (unless explicit role is provided)
+        $roleName = $data['role'] ?? ($rolesList !== null && !empty($rolesList) ? $rolesList[0] : null);
+
+        if ($roleName) {
+            $updateData['role'] = $roleName;
+            $jab = \App\Models\Jabatan::where('name', $roleName)->first();
+            if ($jab) {
+                $updateData['role_id'] = $jab->id;
+            } else {
+                $updateData['role_id'] = null;
+            }
+        }
+
+        $deptCode = null;
+        if (isset($data['unit_id'])) {
+            if ($data['unit_id']) {
+                $unit = \App\Models\Unit::find($data['unit_id']);
+                $deptCode = $unit ? $unit->code : null;
+            }
+            $updateData['department_code'] = $deptCode;
+        } elseif (isset($data['department_code'])) {
+            $deptCode = $data['department_code'];
+            $updateData['department_code'] = $deptCode;
+        }
 
         if (!empty($updateData)) {
             $user->update($updateData);
         }
 
-        // Update local unit & role mapping
-        if (isset($data['unit_id']) && isset($data['roles'])) {
-            $roleName = $data['roles'][0] ?? null;
-            $jabatan = \App\Models\Jabatan::where('name', $roleName)->first();
-            if ($jabatan) {
-                UserJabatanUnit::where('user_id', $id)->delete();
-                UserJabatanUnit::create([
-                    'user_id'    => $id,
-                    'jabatan_id' => $jabatan->id,
-                    'unit_id'    => $data['unit_id'],
-                ]);
-            }
+        if ($rolesList !== null) {
+            $user->syncRoles($rolesList);
         }
 
-        // Sync Spatie roles
-        if (isset($data['roles'])) {
-            $user->syncRoles($data['roles']);
+        // Update local unit & role mapping
+        if (isset($data['unit_id']) || isset($data['department_code']) || isset($data['roles'])) {
+            $unitId = null;
+            if (isset($data['unit_id'])) {
+                $unitId = $data['unit_id'];
+            } elseif (isset($data['department_code'])) {
+                $unit = \App\Models\Unit::where('code', $data['department_code'])->first();
+                $unitId = $unit ? $unit->id : null;
+            } else {
+                $unitId = $user->unit_id;
+            }
+
+            if ($rolesList === null) {
+                $rolesList = $user->roles->pluck('name')->toArray();
+            }
+
+            UserJabatanUnit::where('user_id', $id)->delete();
+            if ($unitId && !empty($rolesList)) {
+                foreach ($rolesList as $rName) {
+                    $jab = \App\Models\Jabatan::where('name', $rName)->first();
+                    if ($jab) {
+                        UserJabatanUnit::create([
+                            'user_id'    => $id,
+                            'jabatan_id' => $jab->id,
+                            'unit_id'    => $unitId,
+                        ]);
+                    }
+                }
+            }
         }
 
         return $this->findById($id);

@@ -24,7 +24,7 @@ class StoreAdminRequest extends FormRequest
         return [
             'email'    => ['required', 'email'],
             'password' => ['required', 'string', 'min:8'],
-            'role'     => ['required', 'string', 'in:Mahasiswa,Dosen,Admin'],
+            'role'     => ['sometimes', 'nullable', 'string', 'exists:m_jabatan,name'],
             'nidn'     => ['nullable', 'string', 'max:20'],
             'npm'      => ['nullable', 'string', 'max:20'],
             'roles'    => ['required', 'array'],
@@ -41,7 +41,7 @@ class StoreAdminRequest extends FormRequest
             'password.required' => 'Password wajib diisi.',
             'password.min'      => 'Password minimal 8 karakter.',
             'role.required'     => 'Role institusi wajib dipilih.',
-            'role.in'           => 'Role tidak valid. Pilih: Mahasiswa, Dosen, atau Admin.',
+            'role.exists'       => 'Role/Jabatan yang dipilih tidak ditemukan.',
             'roles.required'    => 'Jabatan wajib dipilih.',
             'roles.array'       => 'Format jabatan tidak valid.',
             'roles.*.exists'    => 'Jabatan yang dipilih tidak ditemukan.',

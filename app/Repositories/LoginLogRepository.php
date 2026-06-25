@@ -137,7 +137,7 @@ class LoginLogRepository implements LoginLogRepositoryInterface
             ->where('status', 'failed')
             ->where('created_at', '>=', now()->subMinutes($minutes))
             ->groupBy('ip_address')
-            ->having('attempt_count', '>=', $threshold)
+            ->havingRaw('COUNT(*) >= ?', [$threshold])
             ->orderByDesc('attempt_count')
             ->get();
     }

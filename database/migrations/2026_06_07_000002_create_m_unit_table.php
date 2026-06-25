@@ -11,13 +11,15 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('m_unit', function (Blueprint $table) {
-            $table->id();
-            $table->string('code', 50);
-            $table->string('nama_unit', 100);
-            $table->timestamps();
-            $table->softDeletes();
-        });
+        if (!Schema::hasTable('m_unit')) {
+            Schema::create('m_unit', function (Blueprint $table) {
+                $table->id();
+                $table->string('code', 50);
+                $table->string('nama_unit', 100);
+                $table->timestamps();
+                $table->softDeletes();
+            });
+        }
     }
 
     /**

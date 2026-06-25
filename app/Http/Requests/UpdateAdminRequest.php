@@ -18,7 +18,7 @@ class UpdateAdminRequest extends FormRequest
         return [
             'email'    => ['sometimes', 'email'],
             'password' => ['sometimes', 'nullable', 'string', 'min:8'],
-            'role'     => ['sometimes', 'string', 'in:Mahasiswa,Dosen,Admin'],
+            'role'     => ['sometimes', 'string', 'exists:m_jabatan,name'],
             'nidn'     => ['nullable', 'string', 'max:20'],
             'npm'      => ['nullable', 'string', 'max:20'],
             'roles'    => ['sometimes', 'array'],
@@ -32,7 +32,7 @@ class UpdateAdminRequest extends FormRequest
         return [
             'email.email'    => 'Format email tidak valid.',
             'password.min'   => 'Password minimal 8 karakter.',
-            'role.in'        => 'Role tidak valid. Pilih: Mahasiswa, Dosen, atau Admin.',
+            'role.exists'    => 'Role/Jabatan yang dipilih tidak ditemukan.',
             'roles.array'    => 'Format jabatan tidak valid.',
             'roles.*.exists' => 'Jabatan yang dipilih tidak ditemukan.',
         ];

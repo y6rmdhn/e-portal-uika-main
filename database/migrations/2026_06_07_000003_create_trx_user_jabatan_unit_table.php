@@ -11,20 +11,22 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('trx_user_jabatan_unit', function (Blueprint $table) {
-            $table->id();
-            $table->uuid('user_id'); // maps to users.public_id
-            $table->unsignedBigInteger('jabatan_id');
-            $table->unsignedBigInteger('unit_id');
-            $table->text('keterangan')->nullable();
-            $table->timestamps();
-            $table->softDeletes();
+        if (!Schema::hasTable('trx_user_jabatan_unit')) {
+            Schema::create('trx_user_jabatan_unit', function (Blueprint $table) {
+                $table->id();
+                $table->uuid('user_id'); // maps to users.public_id
+                $table->unsignedBigInteger('jabatan_id');
+                $table->unsignedBigInteger('unit_id');
+                $table->text('keterangan')->nullable();
+                $table->timestamps();
+                $table->softDeletes();
 
-            // Foreign keys
-            // $table->foreign('user_id')->references('public_id')->on('users')->onDelete('cascade');
-            $table->foreign('jabatan_id')->references('id')->on('m_jabatan')->onDelete('cascade');
-            $table->foreign('unit_id')->references('id')->on('m_unit')->onDelete('cascade');
-        });
+                // Foreign keys
+                // $table->foreign('user_id')->references('public_id')->on('users')->onDelete('cascade');
+                $table->foreign('jabatan_id')->references('id')->on('m_jabatan')->onDelete('cascade');
+                $table->foreign('unit_id')->references('id')->on('m_unit')->onDelete('cascade');
+            });
+        }
     }
 
     /**

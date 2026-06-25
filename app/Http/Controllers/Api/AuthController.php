@@ -260,19 +260,23 @@ class AuthController extends Controller
         try {
             $user = FacadesJWTAuth::user();
 
-            $roleName = $user->getRoleNames()->first() ?? $user->role;
-            $role = $user->roles()->first();
+            // Eager load relasi agar unit_id dan unit_name bisa diakses dengan benar
+            $user->load(['roles', 'unit']);
+
+            $unit     = $user->getRelation('unit');
+            $jabatans = $user->getRoleNames()->toArray(); // Hanya dari Spatie, tidak fallback ke role lama
 
             $userData = [
                 'id'        => $user->user_id,
                 'email'     => $user->email,
                 'name'      => $user->email,
-                'role'      => $roleName,
-                'role_id'   => $role ? $role->id : null,
+                'role'      => !empty($jabatans) ? $jabatans[0] : null, // null jika tidak punya jabatan
+                'role_id'   => $user->roles()->first()?->id,
                 'nidn'      => $user->nidn,
-                'npm'      => $user->npm,
-                'unit_id'   => $user->unit_id,
-                'unit_name' => $user->unit?->nama_unit,
+                'npm'       => $user->npm,
+                'unit_id'   => $unit?->id,
+                'unit_name' => $unit?->nama_unit,
+                'jabatans'  => $jabatans, // Array jabatan aktual dari Spatie
                 'image'     => null,
             ];
 
@@ -465,6 +469,16 @@ class AuthController extends Controller
             // Calculate the permissions for this user, module, and role context
             $permissions = $this->getPermissionsForContext($user, $appModule_id, $role_id);
 
+            // Ambil unit yang sesuai dengan jabatan terpilih dari trx_user_jabatan_unit
+            $assignment = \App\Models\UserJabatanUnit::where([
+                'user_id'    => $user->user_id,
+                'jabatan_id' => $role_id,
+            ])->first();
+
+            $unitId   = $assignment?->unit_id ?? $user->unit_id;
+            $unitName = $assignment?->unit?->nama_unit ?? $user->unit?->nama_unit;
+            $unitCode = $assignment?->unit?->code ?? $user->unit?->code;
+
             // Generate a scoped token for the sub-app containing the contextual permissions
             $scopedToken = FacadesJWTAuth::claims([
                 'id'           => $user->user_id,
@@ -472,8 +486,9 @@ class AuthController extends Controller
                 'appModule_id' => (int) $appModule_id,
                 'role_id'      => (int) $role_id,
                 'role_name'    => $roleModel?->name,
-                'unit_id'      => $user->unit_id ? (int) $user->unit_id : null,
-                'unit_name'    => $user->unit?->nama_unit,
+                'unit_id'      => $unitId ? (int) $unitId : null,
+                'unit_name'    => $unitName,
+                'unit_code'    => $unitCode,
                 'permissions'  => $permissions,
                 'is_scoped'    => true, // flag to identify scoped token
             ])->fromUser($user);

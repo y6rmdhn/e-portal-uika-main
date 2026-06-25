@@ -160,10 +160,10 @@ class UserStatisticsRepository implements UserStatisticsRepositoryInterface
         $loginData = DB::table('user_login_logs')
             ->where('status', 'success')
             ->where('created_at', '>=', now()->subMonths(5)->startOfMonth())
-            ->selectRaw('YEAR(created_at) as year, MONTH(created_at) as month, COUNT(DISTINCT user_id) as active')
+            ->selectRaw('EXTRACT(YEAR FROM created_at) as year, EXTRACT(MONTH FROM created_at) as month, COUNT(DISTINCT user_id) as active')
             ->groupBy('year', 'month')
             ->get()
-            ->keyBy(fn($row) => $row->year . '-' . $row->month);
+            ->keyBy(fn($row) => (int)$row->year . '-' . (int)$row->month);
 
         $totalUsers = $this->model->count();
 
@@ -230,8 +230,8 @@ class UserStatisticsRepository implements UserStatisticsRepositoryInterface
     {
         return DB::table('user_login_logs')
             ->select(
-                DB::raw('DAYOFWEEK(created_at) as day_of_week'),
-                DB::raw('HOUR(created_at) as hour'),
+                DB::raw('EXTRACT(DOW FROM created_at) + 1 as day_of_week'),
+                DB::raw('EXTRACT(HOUR FROM created_at) as hour'),
                 DB::raw('count(*) as count')
             )
             ->where('created_at', '>=', now()->subDays(30))

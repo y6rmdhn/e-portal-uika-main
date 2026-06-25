@@ -27,11 +27,13 @@ class UserSeeder extends Seeder
         $admin = User::where('email', 'admin@gmail.com')->first();
         if (!$admin) {
             $admin = User::create([
-                'user_id'    => (string) Str::uuid(),
-                'email'      => 'admin@gmail.com',
-                'password'   => Hash::make('password'),
-                'role'       => 'admin',
-                'isverified' => true,
+                'user_id'         => (string) Str::uuid(),
+                'email'           => 'admin@gmail.com',
+                'password'        => Hash::make('password'),
+                'role'            => 'admin',
+                'role_id'         => $adminRole?->id,
+                'department_code' => 'Univ',
+                'isverified'      => true,
             ]);
         }
         $admin->syncRoles([$adminRole]);
@@ -40,12 +42,14 @@ class UserSeeder extends Seeder
         $dosen = User::where('email', 'dosen@gmail.com')->first();
         if (!$dosen) {
             $dosen = User::create([
-                'user_id'    => (string) Str::uuid(),
-                'email'      => 'dosen@gmail.com',
-                'password'   => Hash::make('password'),
-                'role'       => 'dosen',
-                'nidn'       => '0407029202', // Example NIDN
-                'isverified' => true,
+                'user_id'         => (string) Str::uuid(),
+                'email'           => 'dosen@gmail.com',
+                'password'        => Hash::make('password'),
+                'role'            => 'dosen',
+                'role_id'         => $dosenRole?->id,
+                'department_code' => 'FT_TI',
+                'nidn'            => '0407029202', // Example NIDN
+                'isverified'      => true,
             ]);
         }
         $dosen->syncRoles([$dosenRole]);
@@ -54,12 +58,14 @@ class UserSeeder extends Seeder
         $mahasiswa = User::where('email', 'mahasiswa@gmail.com')->first();
         if (!$mahasiswa) {
             $mahasiswa = User::create([
-                'user_id'    => (string) Str::uuid(),
-                'email'      => 'mahasiswa@gmail.com',
-                'password'   => Hash::make('password'),
-                'role'       => 'mahasiswa',
-                'npm'        => '241106041778', // Example NPM
-                'isverified' => true,
+                'user_id'         => (string) Str::uuid(),
+                'email'           => 'mahasiswa@gmail.com',
+                'password'        => Hash::make('password'),
+                'role'            => 'mahasiswa',
+                'role_id'         => $mahasiswaRole?->id,
+                'department_code' => 'FT_TI',
+                'npm'             => '241106041778', // Example NPM
+                'isverified'      => true,
             ]);
         }
         $mahasiswa->syncRoles([$mahasiswaRole]);
@@ -68,11 +74,13 @@ class UserSeeder extends Seeder
         $user = User::where('email', 'user@gmail.com')->first();
         if (!$user) {
             $user = User::create([
-                'user_id'    => (string) Str::uuid(),
-                'email'      => 'user@gmail.com',
-                'password'   => Hash::make('password'),
-                'role'       => 'user',
-                'isverified' => true,
+                'user_id'         => (string) Str::uuid(),
+                'email'           => 'user@gmail.com',
+                'password'        => Hash::make('password'),
+                'role'            => 'user',
+                'role_id'         => $userRole?->id,
+                'department_code' => 'FT_TI',
+                'isverified'      => true,
             ]);
         }
         $user->syncRoles([$userRole]);

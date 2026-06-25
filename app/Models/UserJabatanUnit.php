@@ -12,6 +12,8 @@ class UserJabatanUnit extends Model
 
     protected $table = 'trx_user_jabatan_unit';
 
+    const UPDATED_AT = null;
+
     protected $fillable = [
         'user_id',
         'jabatan_id',

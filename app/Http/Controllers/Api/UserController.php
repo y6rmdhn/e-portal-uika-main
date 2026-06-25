@@ -104,12 +104,8 @@ class UserController extends Controller
      */
     public function update(UpdateAdminRequest $request, string $id): JsonResponse
     {
-
         try {
-
             $data = $request->validated();
-            $data['is_active'] = filter_var($data['is_active'] ?? null, FILTER_VALIDATE_BOOLEAN);
-            $data['image'] = $request->file('image');
 
             $user = $this->service->updateAdmin($id, $data);
 

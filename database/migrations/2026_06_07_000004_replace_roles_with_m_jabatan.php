@@ -15,11 +15,27 @@ return new class extends Migration
         if (!Schema::hasTable('roles')) {
             // Old roles table does not exist. We are starting in a fresh environment where Spatie
             // roles table was configured as m_jabatan from the beginning.
-            // We only need to ensure the unique index exists on m_jabatan.name if not present.
+            // Ensure m_jabatan has 'name' and 'guard_name' columns.
             Schema::table('m_jabatan', function (Blueprint $table) {
                 if (!Schema::hasColumn('m_jabatan', 'nama_jabatan')) {
                     $table->string('nama_jabatan', 100)->nullable();
                 }
+                if (!Schema::hasColumn('m_jabatan', 'name')) {
+                    $table->string('name', 100)->nullable();
+                }
+                if (!Schema::hasColumn('m_jabatan', 'guard_name')) {
+                    $table->string('guard_name', 100)->default('web');
+                }
+            });
+
+            // If name is null, copy nama_jabatan to name
+            DB::table('m_jabatan')->whereNull('name')->update(['name' => DB::raw('nama_jabatan')]);
+
+            // Enforce NOT NULL and UNIQUE on name
+            Schema::table('m_jabatan', function (Blueprint $table) {
+                try {
+                    $table->string('name', 100)->nullable(false)->change();
+                } catch (\Exception $e) {}
                 try {
                     $table->unique('name');
                 } catch (\Exception $e) {
@@ -129,7 +145,7 @@ return new class extends Migration
             FROM m_jabatan r
             JOIN role_has_permissions rhp ON r.id = rhp.role_id
             JOIN permissions p ON rhp.permission_id = p.id
-            JOIN app_module am ON p.appModule_id = am.id
+            JOIN app_module am ON p.\"appModule_id\" = am.id
         ");
     }
 

@@ -8,15 +8,15 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->timestamp('last_login_at')->nullable()->after('remember_token');
+        Schema::table('tb_users', function (Blueprint $table) {
+            $table->timestamp('last_login_at')->nullable();
             $table->index('last_login_at');
         });
     }
 
     public function down(): void
     {
-        Schema::table('users', function (Blueprint $table) {
+        Schema::table('tb_users', function (Blueprint $table) {
             $table->dropIndex(['last_login_at']);
             $table->dropColumn('last_login_at');
         });

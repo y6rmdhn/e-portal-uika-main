@@ -19,7 +19,7 @@ return new class extends Migration
             FROM {$roleTable} r
             JOIN role_has_permissions rhp ON r.id = rhp.role_id
             JOIN permissions p ON rhp.permission_id = p.id
-            JOIN app_module am ON p.appModule_id = am.id
+            JOIN app_module am ON p.\"appModule_id\" = am.id
         ");
     }
 

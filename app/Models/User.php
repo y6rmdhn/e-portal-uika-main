@@ -11,7 +11,7 @@ class User extends Authenticatable implements JWTSubject
 {
     use Notifiable, HasRoles;
 
-    protected $connection  = 'ucl';
+    protected $connection  = 'pgsql';
     protected $table       = 'tb_users';
     protected $primaryKey  = 'user_id';
     public    $incrementing = false;
@@ -25,6 +25,8 @@ class User extends Authenticatable implements JWTSubject
         'nidn',
         'npm',
         'isverified',
+        'role_id',
+        'department_code',
     ];
 
     protected $hidden = [
@@ -40,19 +42,19 @@ class User extends Authenticatable implements JWTSubject
     }
 
     /**
-     * Virtual attribute for unit_id to maintain compatibility with single-unit code.
+     * Relation to unit via department_code.
      */
-    public function getUnitIdAttribute()
+    public function unit()
     {
-        return $this->userJabatanUnits->first()?->unit_id;
+        return $this->belongsTo(Unit::class, 'department_code', 'code');
     }
 
     /**
-     * Virtual attribute for unit model to maintain compatibility with single-unit code.
+     * Relation to role via role_id.
      */
-    public function getUnitAttribute()
+    public function roleModel()
     {
-        return $this->userJabatanUnits->first()?->unit;
+        return $this->belongsTo(Role::class, 'role_id', 'id');
     }
 
     public function getJWTIdentifier()
@@ -62,26 +64,29 @@ class User extends Authenticatable implements JWTSubject
 
     public function getJWTCustomClaims()
     {
+        // Use getRelation to avoid conflict with the unit() relationship method
+        $unit = $this->relationLoaded('unit') ? $this->getRelation('unit') : $this->unit()->first();
+
         return [
             'id'            => $this->user_id,
             'email'         => $this->email,
             'role'          => $this->role,
             'nidn'          => $this->nidn,
             'npm'           => $this->npm,
-            'unit_id'       => $this->unit_id,
-            'unit'          => $this->unit ? [
-                'id'        => $this->unit->id,
-                'code'      => $this->unit->code,
-                'nama_unit' => $this->unit->nama_unit,
+            'unit_id'       => $unit?->id,
+            'unit'          => $unit ? [
+                'id'        => $unit->id,
+                'code'      => $unit->code,
+                'nama_unit' => $unit->nama_unit,
             ] : null,
-            'jabatan_units' => $this->roles->map(function ($role) {
+            'jabatan_units' => $this->roles->map(function ($role) use ($unit) {
                 return [
                     'id'           => $role->id,
                     'jabatan_id'   => $role->id,
                     'nama_jabatan' => $role->name,
-                    'unit_id'      => $this->unit_id,
-                    'code_unit'    => $this->unit?->code,
-                    'nama_unit'    => $this->unit?->nama_unit,
+                    'unit_id'      => $unit?->id,
+                    'code_unit'    => $unit?->code,
+                    'nama_unit'    => $unit?->nama_unit,
                     'keterangan'   => null,
                 ];
             })->toArray(),

@@ -136,18 +136,18 @@ class LoginLogController extends Controller
             $filters = $request->only(['date_from', 'date_to', 'status', 'user_id']);
 
             $query = DB::table('user_login_logs')
-                ->selectRaw('
+                ->selectRaw("
                 DATE(created_at) as date,
                 user_id,
                 COUNT(*) as total,
-                SUM(CASE WHEN status = "success" THEN 1 ELSE 0 END) as success,
-                SUM(CASE WHEN status = "failed" THEN 1 ELSE 0 END) as failed,
+                SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as success,
+                SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
                 MAX(ip_address) as last_ip,
                 MAX(browser) as browser,
                 MAX(platform) as platform,
                 MAX(device_type) as device_type,
                 MAX(created_at) as last_login_at
-            ')
+            ")
                 ->groupBy('date', 'user_id')
                 ->orderByDesc('date')
                 ->orderByDesc('last_login_at');
