@@ -47,7 +47,7 @@ class RoleController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'name'       => 'required|string|max:100|unique:roles,name',
+            'name'       => 'required|string|max:100|unique:m_jabatan,name',
             'guard_name' => 'sometimes|string|max:100',
         ]);
 
@@ -84,7 +84,7 @@ class RoleController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'name'       => 'sometimes|required|string|max:100|unique:roles,name,' . $id,
+            'name'       => 'sometimes|required|string|max:100|unique:m_jabatan,name,' . $id,
             'guard_name' => 'sometimes|string|max:100',
         ]);
 
@@ -129,17 +129,14 @@ class RoleController extends Controller
     /**
      * POST /api/admins/roles/assign
      * Assign a role to one or multiple users (Bulk assignment).
-     *
-     * Body: { "role_id": 2, "user_ids": ["uuid-1", "uuid-2"] }
-     * OR:   { "role_id": 2, "user_id": "uuid-1" }
      */
     public function assignRole(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'role_id'    => 'required|integer|exists:roles,id',
+            'role_id'    => 'required|integer|exists:m_jabatan,id',
             'user_ids'   => 'required_without:user_id|array',
-            'user_ids.*' => 'string|exists:users,public_id',
-            'user_id'    => 'required_without:user_ids|string|exists:users,public_id',
+            'user_ids.*' => 'string|exists:App\Models\User,user_id',
+            'user_id'    => 'required_without:user_ids|string|exists:App\Models\User,user_id',
         ]);
 
         if ($validator->fails()) {
@@ -152,10 +149,9 @@ class RoleController extends Controller
 
         $role = Role::findOrFail($request->role_id);
         
-        // Normalize user_ids to always be an array
         $userIds = $request->has('user_ids') ? $request->user_ids : [$request->user_id];
         
-        $users = \App\Models\User::whereIn('public_id', $userIds)->get();
+        $users = \App\Models\User::whereIn('user_id', $userIds)->get();
 
         foreach ($users as $user) {
             $user->assignRole($role->name);
@@ -167,17 +163,14 @@ class RoleController extends Controller
     /**
      * POST /api/admins/roles/unassign
      * Unassign a role from one or multiple users (Bulk unassignment).
-     *
-     * Body: { "role_id": 2, "user_ids": ["uuid-1", "uuid-2"] }
-     * OR:   { "role_id": 2, "user_id": "uuid-1" }
      */
     public function unassignRole(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'role_id'    => 'required|integer|exists:roles,id',
+            'role_id'    => 'required|integer|exists:m_jabatan,id',
             'user_ids'   => 'required_without:user_id|array',
-            'user_ids.*' => 'string|exists:users,public_id',
-            'user_id'    => 'required_without:user_ids|string|exists:users,public_id',
+            'user_ids.*' => 'string|exists:App\Models\User,user_id',
+            'user_id'    => 'required_without:user_ids|string|exists:App\Models\User,user_id',
         ]);
 
         if ($validator->fails()) {
@@ -190,10 +183,9 @@ class RoleController extends Controller
 
         $role = Role::findOrFail($request->role_id);
         
-        // Normalize user_ids to always be an array
         $userIds = $request->has('user_ids') ? $request->user_ids : [$request->user_id];
         
-        $users = \App\Models\User::whereIn('public_id', $userIds)->get();
+        $users = \App\Models\User::whereIn('user_id', $userIds)->get();
 
         foreach ($users as $user) {
             $user->removeRole($role->name);
@@ -202,4 +194,3 @@ class RoleController extends Controller
         return ResponseBuilder::success(200, 'Role unassigned successfully from ' . $users->count() . ' user(s).');
     }
 }
-

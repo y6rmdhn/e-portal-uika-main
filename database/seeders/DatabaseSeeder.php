@@ -14,9 +14,11 @@ class DatabaseSeeder extends Seeder
     public function run()
     {
         $this->call([
+            JabatanUnitSeeder::class,
             RolePermissionSeeder::class,
             UserSeeder::class,
             SsoClientSeeder::class,
+            SsoIntegrationTemplateSeeder::class,
         ]);
     }
 }

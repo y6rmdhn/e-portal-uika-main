@@ -2,15 +2,8 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Spatie\Permission\Models\Role as SpatieRole;
-
-class Role extends SpatieRole
+class Role extends Jabatan
 {
-    use HasFactory;
-
-    protected $fillable = [
-        'name',
-        'guard_name',
-    ];
+    // Legacy support. Role now inherits all properties and behavior of Jabatan,
+    // which extends Spatie's Role and maps to the m_jabatan table.
 }

@@ -30,7 +30,7 @@ class RolePermissionSeeder extends Seeder
             ],
             'siakad' => [
                 'name' => 'SIAKAD (Akademik)',
-                'url' => 'http://localhost:8081/sso/callback',
+                'url' => 'http://localhost:5174/sso/callback',
             ],
             'elibrary' => [
                 'name' => 'E-Library UIKA',
@@ -78,11 +78,50 @@ class RolePermissionSeeder extends Seeder
             }
         }
 
-        // Define Roles
-        $admin = Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
-        $user  = Role::firstOrCreate(['name' => 'user', 'guard_name' => 'web']);
-        $dosen = Role::firstOrCreate(['name' => 'dosen', 'guard_name' => 'web']);
-        $mahasiswa = Role::firstOrCreate(['name' => 'mahasiswa', 'guard_name' => 'web']);
+        // Define Roles with non-colliding IDs to prevent JabatanUnitSeeder from overwriting them
+        $admin = Role::where('name', 'admin')->orWhere('id', 100)->first();
+        if (!$admin) {
+            $admin = new Role();
+            $admin->id = 100;
+            $admin->name = 'admin';
+            $admin->guard_name = 'web';
+            $admin->save();
+        } else {
+            $admin->update(['name' => 'admin', 'guard_name' => 'web']);
+        }
+
+        $user = Role::where('name', 'user')->orWhere('id', 101)->first();
+        if (!$user) {
+            $user = new Role();
+            $user->id = 101;
+            $user->name = 'user';
+            $user->guard_name = 'web';
+            $user->save();
+        } else {
+            $user->update(['name' => 'user', 'guard_name' => 'web']);
+        }
+
+        $dosen = Role::where('name', 'dosen')->orWhere('id', 21)->first();
+        if (!$dosen) {
+            $dosen = new Role();
+            $dosen->id = 21; // Match ID 21 in JabatanUnitSeeder
+            $dosen->name = 'dosen';
+            $dosen->guard_name = 'web';
+            $dosen->save();
+        } else {
+            $dosen->update(['name' => 'dosen', 'guard_name' => 'web']);
+        }
+
+        $mahasiswa = Role::where('name', 'mahasiswa')->orWhere('id', 102)->first();
+        if (!$mahasiswa) {
+            $mahasiswa = new Role();
+            $mahasiswa->id = 102;
+            $mahasiswa->name = 'mahasiswa';
+            $mahasiswa->guard_name = 'web';
+            $mahasiswa->save();
+        } else {
+            $mahasiswa->update(['name' => 'mahasiswa', 'guard_name' => 'web']);
+        }
 
         // Sync permissions to roles
         // Admin gets all permissions

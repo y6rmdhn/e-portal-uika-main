@@ -8,17 +8,38 @@ class UserAdminResource extends JsonResource
 {
     public function toArray($request): array
     {
-        // Handle both stdClass (dari UCL) dan Eloquent model
-        $data = is_object($this->resource) ? (array) $this->resource : $this->resource;
+        // Safely get the unit — either from eager-loaded relation or via accessor
+        $unit = $this->relationLoaded('unit')
+            ? $this->getRelation('unit')
+            : $this->unit()->first();
 
         return [
-            'id'         => $data['user_id'] ?? null,
-            'email'      => $data['email']   ?? null,
-            'role'       => $data['role']    ?? null,
-            'nidn'       => $data['nidn']    ?? null,
-            'npm'        => $data['npm']     ?? null,
-            'isverified' => $data['isverified'] ?? false,
-            'created_at' => $data['created_at'] ?? null,
+            'id'            => $this->user_id,
+            'email'         => $this->email,
+            'role'          => $this->role,
+            'nidn'          => $this->nidn,
+            'npm'           => $this->npm,
+            'isverified'    => (bool) ($this->isverified ?? true),
+            'unit_id'       => $unit?->id,
+            'unit'          => $unit ? [
+                'id'        => $unit->id,
+                'code'      => $unit->code,
+                'nama_unit' => $unit->nama_unit,
+            ] : null,
+            'roles'         => $this->roles->pluck('name')->toArray(),
+            'jabatan_units' => $this->roles->map(function ($role) use ($unit) {
+                return [
+                    'id'           => $role->id,
+                    'jabatan_id'   => $role->id,
+                    'nama_jabatan' => $role->name,
+                    'unit_id'      => $unit?->id,
+                    'code_unit'    => $unit?->code,
+                    'nama_unit'    => $unit?->nama_unit,
+                    'keterangan'   => null,
+                ];
+            })->toArray(),
+            'created_at'    => $this->created_at ? $this->created_at->format('d-m-Y H:i') : null,
+            'updated_at'    => $this->updated_at ? $this->updated_at->format('d-m-Y H:i') : null,
         ];
     }
-}
+}

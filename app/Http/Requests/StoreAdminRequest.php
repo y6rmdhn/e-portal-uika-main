@@ -18,32 +18,35 @@ class StoreAdminRequest extends FormRequest
 
     /**
      * Get the validation rules that apply to the request.
-     *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
      */
-    
     public function rules(): array
-{
-    return [
-        'email'    => ['required', 'email'],
-        'password' => ['required', 'string', 'min:8'],
-        'role'     => ['required', 'string', 'in:Mahasiswa,Dosen,Admin'],
-        'nidn'     => ['nullable', 'string', 'max:10'],
-        'npm'      => ['nullable', 'string', 'max:12'],
-    ];
-}
+    {
+        return [
+            'email'    => ['required', 'email'],
+            'password' => ['required', 'string', 'min:8'],
+            'role'     => ['sometimes', 'nullable', 'string', 'exists:m_jabatan,name'],
+            'nidn'     => ['nullable', 'string', 'max:20'],
+            'npm'      => ['nullable', 'string', 'max:20'],
+            'roles'    => ['required', 'array'],
+            'roles.*'  => ['required', 'string', 'exists:m_jabatan,name'],
+            'unit_id'  => ['nullable', 'integer', 'exists:m_unit,id'],
+        ];
+    }
 
-public function messages(): array
-{
-    return [
-        'email.required'    => 'Email wajib diisi.',
-        'email.email'       => 'Format email tidak valid.',
-        'password.required' => 'Password wajib diisi.',
-        'password.min'      => 'Password minimal 8 karakter.',
-        'role.required'     => 'Role wajib dipilih.',
-        'role.in'           => 'Role tidak valid. Pilih: Mahasiswa, Dosen, atau Admin.',
-    ];
-}
+    public function messages(): array
+    {
+        return [
+            'email.required'    => 'Email wajib diisi.',
+            'email.email'       => 'Format email tidak valid.',
+            'password.required' => 'Password wajib diisi.',
+            'password.min'      => 'Password minimal 8 karakter.',
+            'role.required'     => 'Role institusi wajib dipilih.',
+            'role.exists'       => 'Role/Jabatan yang dipilih tidak ditemukan.',
+            'roles.required'    => 'Jabatan wajib dipilih.',
+            'roles.array'       => 'Format jabatan tidak valid.',
+            'roles.*.exists'    => 'Jabatan yang dipilih tidak ditemukan.',
+        ];
+    }
 
     protected function failedValidation(Validator $validator)
     {

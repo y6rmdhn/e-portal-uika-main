@@ -3,38 +3,22 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Support\Facades\DB; 
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
-class Unit extends Authenticatable
+class Unit extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var string[]
-     */
-
-    protected $table = 'unit';
+    protected $table = 'm_unit';
 
     protected $fillable = [
-        'name',
-        'description',
-        'status' 
-    ];  
+        'code',
+        'nama_unit',
+    ];
 
-    public static function boot()
+    public function userJabatanUnits()
     {
-        parent::boot();
-
-        static::addGlobalScope(function ($query) {
-            $query->whereNull('unit.deleted_at');
-        });
+        return $this->hasMany(UserJabatanUnit::class, 'unit_id', 'id');
     }
-    public static function getTableColumns()
-    {
-        return DB::getSchemaBuilder()->getColumnListing('unit');
-    } 
-    
 }

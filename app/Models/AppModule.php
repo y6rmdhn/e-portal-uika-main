@@ -26,7 +26,7 @@ class AppModule extends Authenticatable
 
     public function permission()
     {
-        return $this->hasMany(Permission::class, 'appModule_id', 'id'); 
+        return $this->hasMany(Permission::class, 'appModule_id', 'id');
     }
 
     public function ssoClient()
@@ -34,10 +34,15 @@ class AppModule extends Authenticatable
         return $this->hasOne(SsoClient::class, 'app_module_id', 'id');
     }
 
+    public function roles()
+    {
+        return $this->belongsToMany(Role::class, 'role_app_modules', 'app_module_id', 'role_id');
+    }
+
 
     public static function getTableColumns()
     {
         return DB::getSchemaBuilder()->getColumnListing('app_module');
-    } 
-    
+    }
+
 }

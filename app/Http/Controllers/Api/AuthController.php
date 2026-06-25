@@ -31,7 +31,6 @@ use App\Services\ActivityLogService;
 
 class AuthController extends Controller
 {
-
     public function __construct(
         protected LoginLogService $loginLogService,
         protected ActivityLogService $activityLog,
@@ -169,7 +168,6 @@ class AuthController extends Controller
         return response()->json(['status' => 201, 'message' => $message], 201);
     }
 
-
     public function auth(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -237,21 +235,16 @@ class AuthController extends Controller
             ], 403);
         }
 
-        // ── Sync user ke DB E-Portal (hanya untuk kebutuhan JWT & log) ────────
-        $user = User::firstOrCreate(
-            ['email' => $uclUser->email],
-            [
-                'name'     => $uclUser->email,
-                'password' => $uclUser->password,
-                'role'     => $uclUser->role,
-            ]
-        );
-
-        // Sync role & password kalau berubah di UCL
-        $needsUpdate = [];
-        if ($user->role     !== $uclUser->role)     $needsUpdate['role']     = $uclUser->role;
-        if ($user->password !== $uclUser->password) $needsUpdate['password'] = $uclUser->password;
-        if (!empty($needsUpdate)) $user->update($needsUpdate);
+        // Fetch User model using Eloquent on UCL connection
+        $user = User::where('email', $uclUser->email)->first();
+        if (!$user) {
+            // Backup fallback just in case Eloquent model wasn't resolved
+            return response()->json([
+                'status'  => 500,
+                'message' => 'User account configuration error.',
+                'data'    => []
+            ], 500);
+        }
 
         // Generate JWT
         try {
@@ -271,7 +264,7 @@ class AuthController extends Controller
             'Login ke E-Portal',
             userId: $user->user_id,
             actorId: $user->user_id,
-            metadata: ['ip' => $request->ip()],
+            metadata: ['ip' => $request->ip(), 'browser' => $request->userAgent()],
         );
 
         $isProduction = config('app.env') === 'production';
@@ -289,13 +282,19 @@ class AuthController extends Controller
             $isProduction ? 'None' : 'Lax'
         );
 
+        $roleName = $user->getRoleNames()->first() ?? $user->role;
+        $roleModel = $user->roles()->first();
+
         return ResponseBuilder::success(200, 'Login berhasil', [
             'user' => [
-                'id'    => $user->id,
-                'email' => $uclUser->email,
-                'role'  => $uclUser->role,
-                'nidn'  => $uclUser->nidn,
-                'npm'   => $uclUser->npm,
+                'id'        => $user->user_id,
+                'email'     => $user->email,
+                'role'      => $roleName,
+                'role_id'   => $roleModel ? $roleModel->id : null,
+                'nidn'      => $user->nidn,
+                'npm'       => $user->npm,
+                'unit_id'   => $user->unit_id,
+                'unit_name' => $user->unit?->nama_unit,
             ],
             'uika_sso_token' => $token,
         ])->withCookie($cookie);
@@ -338,7 +337,6 @@ class AuthController extends Controller
             ], 500);
         } catch (\Exception $e) {
             \Log::error('Logout error: ' . $e->getMessage());
-            \Log::error($e->getTraceAsString());
             return response()->json([
                 'status' => 500,
                 'success' => false,
@@ -353,210 +351,86 @@ class AuthController extends Controller
         try {
             $user = FacadesJWTAuth::user();
 
-            // Ambil role langsung dari kolom, bukan Spatie
-            $role = $user->role ?? null;
-            $isAdmin = in_array(strtolower($role ?? ''), ['admin', 'super-admin']);
+            // Eager load relasi agar unit_id dan unit_name bisa diakses dengan benar
+            $user->load(['roles', 'unit']);
+
+            $unit     = $user->getRelation('unit');
+            $jabatans = $user->getRoleNames()->toArray(); // Hanya dari Spatie, tidak fallback ke role lama
 
             $userData = [
-                'id'    => $user->user_id,
-                'email' => $user->email,
-                'name'  => $user->email,
-                'role'  => $role,
-                'nidn'  => $user->nidn ?? null,
-                'npm'   => $user->npm  ?? null,
-                'image' => null,
+                'id'        => $user->user_id,
+                'email'     => $user->email,
+                'name'      => $user->email,
+                'role'      => !empty($jabatans) ? $jabatans[0] : null, // null jika tidak punya jabatan
+                'role_id'   => $user->roles()->first()?->id,
+                'nidn'      => $user->nidn,
+                'npm'       => $user->npm,
+                'unit_id'   => $unit?->id,
+                'unit_name' => $unit?->nama_unit,
+                'jabatans'  => $jabatans, // Array jabatan aktual dari Spatie
+                'image'     => null,
             ];
 
-            // Permission & modul berdasarkan role
-            if ($isAdmin) {
-                $allModules = \App\Models\AppModule::orderBy('name')->get();
-                $accessibleModulesData = $allModules->map(fn($mod) => [
-                    'id'          => $mod->id,
-                    'name'        => $mod->name,
-                    'url'         => $mod->url,
-                    'permissions' => [],
-                ])->values();
+            // Ambil semua permission user (jika admin/super-admin, ambil semua permission di system)
+            if (in_array(strtolower($user->role ?? ''), ['admin', 'super-admin']) || $user->hasAnyRole(['admin', 'super-admin'])) {
+                $allPermissions = \App\Models\Permission::all();
             } else {
-                $accessibleModulesData = \App\Models\AppModule::orderBy('name')->get()->map(fn($mod) => [
-                    'id'          => $mod->id,
-                    'name'        => $mod->name,
-                    'url'         => $mod->url,
-                    'permissions' => [],
-                ])->values();
+                $allPermissions = $user->getAllPermissions();
             }
 
-            $userData['permissions']          = [];
-            $userData['permissions_by_module'] = [];
-            $userData['module_permissions']   = [];
-            $userData['accessible_modules']   = $accessibleModulesData;
+            // Buat list nama permission flat
+            $permissionsList = $allPermissions->pluck('name')->toArray();
 
-            return response()->json([
-                'status'  => 200,
-                'success' => true,
-                'message' => 'User data retrieved successfully',
-                'data'    => $userData
-            ], 200);
-        } catch (\Exception $e) {
-            return response()->json([
-                'status'  => 500,
-                'success' => false,
-                'message' => 'Failed to retrieve user data: ' . $e->getMessage(),
-                'data'    => []
-            ], 500);
-        }
-    }
-
-    public function sendResetLinkEmail(Request $request)
-{
-    $validator = Validator::make($request->all(), [
-        'email' => 'required|email',
-    ]);
-
-    if ($validator->fails()) {
-        return response()->json([
-            'status' => 400,
-            'success' => false,
-            'message' => $validator->errors()->first(),
-            'data' => []
-        ], 400);
-    }
-
-    $email = $request->email;
-
-    // Cek user ada di UCL
-    $uclUser = DB::connection('ucl')
-        ->table('tb_users')
-        ->where('email', $email)
-        ->whereNull('deleted_at')
-        ->first();
-
-    if (!$uclUser) {
-        return response()->json([
-            'status' => 400,
-            'success' => false,
-            'message' => 'Email tidak ditemukan.',
-            'data' => []
-        ], 400);
-    }
-
-    try {
-        // Generate token reset manual
-        $token = Str::random(64);
-
-        DB::table('password_resets')->where('email', $email)->delete();
-        DB::table('password_resets')->insert([
-            'email'      => $email,
-            'token'      => Hash::make($token),
-            'created_at' => now(),
-        ]);
-
-        $resetUrl = rtrim(config('app.frontend_url'), '/') . "/reset-password?token={$token}&email=" . urlencode($email);
-
-        // Kirim email manual
-        \Illuminate\Support\Facades\Mail::raw(
-            "Klik link berikut untuk reset password Anda: {$resetUrl}\n\nLink ini berlaku selama 60 menit.",
-            function ($message) use ($email) {
-                $message->to($email)->subject('Reset Password E-Portal UIKA');
+            // Group permission berdasarkan appModule_id
+            $permissionsByModule = [];
+            foreach ($allPermissions as $permission) {
+                if ($permission->appModule_id) {
+                    $permissionsByModule[$permission->appModule_id][] = $permission->name;
+                }
             }
         );
 
-        return response()->json([
-            'status' => 200,
-            'success' => true,
-            'message' => 'Password reset link sent successfully. Please check your email.',
-            'data' => []
-        ], 200);
-    } catch (\Exception $e) {
-        return response()->json([
-            'status' => 500,
-            'success' => false,
-            'message' => 'An error occurred while sending the password reset link: ' . $e->getMessage(),
-            'data' => []
-        ], 500);
+            // Filter jika ada appModule_id di query parameter
+            $appModuleId = $request->query('appModule_id');
+            $modulePermissions = [];
+            if ($appModuleId) {
+                $modulePermissions = isset($permissionsByModule[$appModuleId]) ? $permissionsByModule[$appModuleId] : [];
+            }
+
+            // Accessible Modules
+            $accessibleModuleIds = array_keys($permissionsByModule);
+            $accessibleModulesData = \App\Models\AppModule::whereIn('id', $accessibleModuleIds)
+                ->orderBy('name')
+                ->get()
+                ->map(fn($mod) => [
+                    'id'          => $mod->id,
+                    'name'        => $mod->name,
+                    'url'         => $mod->url,
+                    'permissions' => $permissionsByModule[$mod->id] ?? [],
+                ])
+                ->values();
+
+            $userData['permissions'] = $permissionsList;
+            $userData['permissions_by_module'] = $permissionsByModule;
+            $userData['module_permissions'] = $modulePermissions;
+            $userData['accessible_modules'] = $accessibleModulesData;
+
+            return response()->json([
+                'status' => 200,
+                'success' => true,
+                'message' => 'User data retrieved successfully',
+                'data' => $userData
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 500,
+                'success' => false,
+                'message' => 'Failed to retrieve user data: ' . $e->getMessage(),
+                'data' => []
+            ], 500);
+        }
     }
 }
-
-public function resetPassword(Request $request)
-{
-    $validator = Validator::make($request->all(), [
-        'token'    => 'required',
-        'email'    => 'required|email',
-        'password' => 'required|string|min:8|confirmed',
-    ]);
-
-    if ($validator->fails()) {
-        return response()->json([
-            'status' => 400,
-            'success' => false,
-            'message' => $validator->errors()->first(),
-            'data' => []
-        ], 400);
-    }
-
-    $email = $request->email;
-    $token = $request->token;
-
-    $resetRecord = DB::table('password_resets')->where('email', $email)->first();
-
-    if (!$resetRecord) {
-        return response()->json([
-            'status' => 400,
-            'success' => false,
-            'message' => 'Token reset tidak valid atau sudah kedaluwarsa.',
-            'data' => []
-        ], 400);
-    }
-
-    // Cek token cocok
-    if (!Hash::check($token, $resetRecord->token)) {
-        return response()->json([
-            'status' => 400,
-            'success' => false,
-            'message' => 'Token reset tidak valid.',
-            'data' => []
-        ], 400);
-    }
-
-    // Cek token belum expired (60 menit)
-    if (now()->diffInMinutes($resetRecord->created_at) > 60) {
-        DB::table('password_resets')->where('email', $email)->delete();
-        return response()->json([
-            'status' => 400,
-            'success' => false,
-            'message' => 'Token reset sudah kedaluwarsa. Silakan minta link baru.',
-            'data' => []
-        ], 400);
-    }
-
-    try {
-        // Update password di UCL
-        DB::connection('ucl')->table('tb_users')
-            ->where('email', $email)
-            ->update(['password' => Hash::make($request->password)]);
-
-        // Hapus token setelah dipakai
-        DB::table('password_resets')->where('email', $email)->delete();
-
-        return response()->json([
-            'status' => 200,
-            'success' => true,
-            'message' => 'Password has been reset successfully.',
-            'data' => []
-        ], 200);
-    } catch (\Exception $e) {
-        return response()->json([
-            'status' => 500,
-            'success' => false,
-            'message' => 'An error occurred while resetting the password: ' . $e->getMessage(),
-            'data' => []
-        ], 500);
-    }
-}
-
-    public function redirectToGoogle()
-    {
-        return Socialite::driver('google')->stateless()->redirect();
-    }
 
     public function handleGoogleCallback()
     {
@@ -597,13 +471,13 @@ public function resetPassword(Request $request)
                 ->withCookie($cookie);
         } catch (\Exception $e) {
             \Log::error('Google login error: ' . $e->getMessage());
-            return redirect('http://localhost:5173/login?error=GoogleLoginFailed&msg=' . urlencode($e->getMessage()));
+            return redirect('http://localhost:5173/login?error=GoogleLoginFailed');
         }
     }
 
     public function tokenFromCookie(Request $request)
     {
-        $token = $request->cookie('uika_sso_token');
+        $token = $request->cookie('uika_sso_token') ?: $request->bearerToken();
 
         if (!$token) {
             return response()->json(['status' => 401, 'message' => 'No cookie found.'], 401);
@@ -616,16 +490,22 @@ public function resetPassword(Request $request)
                 return response()->json(['status' => 401, 'message' => 'Invalid token.'], 401);
             }
 
+            $roleName = $user->getRoleNames()->first() ?? $user->role;
+            $roleModel = $user->roles()->first();
+
             return response()->json([
                 'status' => 200,
                 'data'   => [
                     'uika_sso_token' => $token,
                     'user' => [
-                        'id'    => $user->user_id,
-                        'email' => $user->email,
-                        'role'  => $user->role,
-                        'nidn'  => $user->nidn,
-                        'npm'   => $user->npm,
+                        'id'        => $user->user_id,
+                        'email'     => $user->email,
+                        'role'      => $roleName,
+                        'role_id'   => $roleModel ? $roleModel->id : null,
+                        'nidn'      => $user->nidn,
+                        'npm'       => $user->npm,
+                        'unit_id'   => $user->unit_id,
+                        'unit_name' => $user->unit?->nama_unit,
                     ],
                 ],
             ]);
@@ -637,7 +517,6 @@ public function resetPassword(Request $request)
     public function redirect(Request $request)
     {
         try {
-            // Baca token dari HttpOnly cookie, fallback ke bearer token jika cookie kosong (misal di local dev HTTP cross-site)
             $token = $request->cookie('uika_sso_token') ?: $request->bearerToken();
 
             if (!$token) {
@@ -647,7 +526,6 @@ public function resetPassword(Request $request)
                 ], 401);
             }
 
-            // Validasi token masih valid dan dapatkan user object
             $user = FacadesJWTAuth::setToken($token)->authenticate();
 
             $targetUrl    = $request->query('target_url');
@@ -661,6 +539,23 @@ public function resetPassword(Request $request)
                 ], 400);
             }
 
+            // Authorization check: Verify user actually possesses this role/jabatan mapping locally,
+            // unless they are a global administrator.
+            $isGlobalAdmin = in_array(strtolower($user->role ?? ''), ['admin', 'super-admin']) || $user->hasAnyRole(['admin', 'super-admin']);
+            if (!$isGlobalAdmin) {
+                $hasAssignment = \App\Models\UserJabatanUnit::where([
+                    'user_id'    => $user->user_id,
+                    'jabatan_id' => $role_id,
+                ])->exists();
+
+                if (!$hasAssignment) {
+                    return response()->json([
+                        'status'  => 403,
+                        'message' => 'You are not assigned to this role/jabatan.',
+                    ], 403);
+                }
+            }
+
             // Get role model details for metadata
             // $roleModel = \App\Models\Role::find($role_id);
             $roleModel = null;
@@ -668,13 +563,26 @@ public function resetPassword(Request $request)
             // Calculate the permissions for this user, module, and role context
             $permissions = $this->getPermissionsForContext($user, $appModule_id, $role_id);
 
+            // Ambil unit yang sesuai dengan jabatan terpilih dari trx_user_jabatan_unit
+            $assignment = \App\Models\UserJabatanUnit::where([
+                'user_id'    => $user->user_id,
+                'jabatan_id' => $role_id,
+            ])->first();
+
+            $unitId   = $assignment?->unit_id ?? $user->unit_id;
+            $unitName = $assignment?->unit?->nama_unit ?? $user->unit?->nama_unit;
+            $unitCode = $assignment?->unit?->code ?? $user->unit?->code;
+
             // Generate a scoped token for the sub-app containing the contextual permissions
             $scopedToken = FacadesJWTAuth::claims([
-                'id'           => $user->public_id,
+                'id'           => $user->user_id,
                 'email'        => $user->email,
                 'appModule_id' => (int) $appModule_id,
                 'role_id'      => (int) $role_id,
                 'role_name'    => $roleModel?->name,
+                'unit_id'      => $unitId ? (int) $unitId : null,
+                'unit_name'    => $unitName,
+                'unit_code'    => $unitCode,
                 'permissions'  => $permissions,
                 'is_scoped'    => true, // flag to identify scoped token
             ])->fromUser($user);
@@ -691,10 +599,7 @@ public function resetPassword(Request $request)
                 'redirect_url' => $redirectUrl,
             ]);
         } catch (\Exception $e) {
-
             \Log::error('SSO Redirect Error: ' . $e->getMessage());
-            \Log::error($e->getTraceAsString());
-
             return response()->json([
                 'status'  => 401,
                 'message' => 'Session invalid or expired. Error: ' . $e->getMessage(),
@@ -746,7 +651,7 @@ public function validateNpm(Request $request)
     private function getPermissionsForContext($user, $appModuleId, $roleId): array
     {
         // If user is admin/super-admin globally, grant all permissions of the module
-        if (in_array($user->role, ['admin', 'super-admin'])) {
+        if (in_array(strtolower($user->role ?? ''), ['admin', 'super-admin']) || $user->hasAnyRole(['admin', 'super-admin'])) {
             return \App\Models\Permission::where('appModule_id', $appModuleId)
                 ->pluck('name')
                 ->toArray();

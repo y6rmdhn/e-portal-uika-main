@@ -1,0 +1,76 @@
+### SSO E-Portal UIKA API Live Testing File
+#
+# Petunjuk Penggunaan:
+# 1. Pastikan Anda menginstall extension "REST Client" (oleh Huachao Mao) di VS Code.
+# 2. Jalankan server Laravel lokal: php artisan serve
+# 3. Klik "Send Request" di bawah ini untuk Login. Token akan otomatis ter-capture.
+# 4. Ganti nilai clientId dan clientSecret dengan credentials sub-app Anda (dapat dicari via php artisan tinker).
+
+@baseUrl = http://localhost:8000/api
+@email = dosen@gmail.com
+@password = password
+@appModuleId = 4
+@roleId = 2
+@targetUrl = http://localhost:8081/sso/callback
+
+# Ganti dengan credentials client Anda
+@clientId = 12345678-abcd-1234-abcd-1234567890ab
+@clientSecret = abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz
+
+
+###
+### 1. LOGIN USER (Mendapatkan Global SSO Token)
+# @name login
+POST {{baseUrl}}/auth/login HTTP/1.1
+Content-Type: application/json
+Accept: application/json
+
+{
+    "email": "{{email}}",
+    "password": "{{password}}"
+}
+
+
+### Variabel Global Token (Otomatis diambil dari response login di atas)
+@globalToken = {{login.response.body.data.uika_sso_token}}
+
+
+###
+### 2. SSO REDIRECT (Menukarkan Global Token menjadi Scoped Token untuk Sub-App)
+# @name redirect
+GET {{baseUrl}}/sso/redirect?target_url={{targetUrl}}&appModule_id={{appModuleId}}&role_id={{roleId}} HTTP/1.1
+Authorization: Bearer {{globalToken}}
+Accept: application/json
+
+
+###
+### 3. SSO INTROSPECT (Backend Sub-App Memverifikasi Scoped Token)
+# Catatan: Karena REST Client tidak bisa memotong token query string secara otomatis,
+# Salin token JWT panjang dari field "redirect_url" di response langkah 2 di atas,
+# lalu paste pada variabel @scopedToken di bawah ini sebelum mengklik Send Request.
+
+@scopedToken = masukkan_scoped_token_hasil_redirect_langkah_2_di_sini
+
+POST {{baseUrl}}/sso/introspect HTTP/1.1
+Authorization: Bearer {{scopedToken}}
+X-SSO-Client-ID: {{clientId}}
+X-SSO-Client-Secret: {{clientSecret}}
+Accept: application/json
+
+
+###
+### 4. SSO INTROSPECT GLOBAL TOKEN (Alternatif: Introspeksi Token Global dengan query param)
+POST {{baseUrl}}/sso/introspect?appModule_id={{appModuleId}} HTTP/1.1
+Authorization: Bearer {{globalToken}}
+X-SSO-Client-ID: {{clientId}}
+X-SSO-Client-Secret: {{clientSecret}}
+Accept: application/json
+
+
+###
+### 5. SSO VERIFY ACCESS (Cek Hak Akses Cepat untuk Sub-App Middleware)
+GET {{baseUrl}}/sso/verify-access?appModule_id={{appModuleId}} HTTP/1.1
+Authorization: Bearer {{globalToken}}
+X-SSO-Client-ID: {{clientId}}
+X-SSO-Client-Secret: {{clientSecret}}
+Accept: application/json

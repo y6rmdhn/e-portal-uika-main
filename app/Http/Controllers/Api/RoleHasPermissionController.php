@@ -37,13 +37,11 @@ class RoleHasPermissionController extends Controller
     /**
      * POST /api/admins/role-permissions/assign
      * Bulk assign permissions to a role.
-     *
-     * Body: { "role_id": 1, "permission_ids": [1, 2, 3] }
      */
     public function assign(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'role_id'          => 'required|integer|exists:roles,id',
+            'role_id'          => 'required|integer|exists:m_jabatan,id',
             'permission_ids'   => 'required|array|min:1',
             'permission_ids.*' => 'integer|exists:permissions,id',
         ]);
@@ -92,13 +90,11 @@ class RoleHasPermissionController extends Controller
     /**
      * POST /api/admins/role-permissions/unassign
      * Bulk unassign permissions from a role.
-     *
-     * Body: { "role_id": 1, "permission_ids": [1, 2] }
      */
     public function unassign(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'role_id'          => 'required|integer|exists:roles,id',
+            'role_id'          => 'required|integer|exists:m_jabatan,id',
             'permission_ids'   => 'required|array|min:1',
             'permission_ids.*' => 'integer|exists:permissions,id',
         ]);
@@ -136,13 +132,11 @@ class RoleHasPermissionController extends Controller
     /**
      * POST /api/admins/role-permissions/sync
      * Sync (replace) all permissions of a role with the given list.
-     *
-     * Body: { "role_id": 1, "permission_ids": [1, 3] }
      */
     public function sync(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'role_id'          => 'required|integer|exists:roles,id',
+            'role_id'          => 'required|integer|exists:m_jabatan,id',
             'permission_ids'   => 'required|array',
             'permission_ids.*' => 'integer|exists:permissions,id',
         ]);

@@ -28,16 +28,30 @@ Route::get('/sso/verify-access', [SsoController::class, 'verifyAccess'])->middle
 
 
 // ==========================================
-// SSO ROUTES
+// SSO ROUTES — Khusus untuk Sub-Aplikasi
 // ==========================================
+
+// Public: tidak butuh token maupun client credentials
+// Digunakan developer sub-aplikasi untuk memahami kontrak SSO
 Route::get('/sso/capabilities', [SsoController::class, 'capabilities']);
-Route::post('/sso/introspect', [SsoController::class, 'introspect'])->middleware('sso.client');
-Route::get('/sso/verify-access', [SsoController::class, 'verifyAccess'])->middleware(['jwt.verify', 'sso.client']);
+
+// Protected: butuh SSO Client Credentials (X-SSO-Client-ID + X-SSO-Client-Secret)
+// Endpoint utama sub-aplikasi — validasi token + dapatkan user & permissions
+Route::post('/sso/introspect', [SsoController::class, 'introspect'])
+    ->middleware('sso.client');
+
+// Protected: butuh JWT token + SSO Client Credentials
+// Cek cepat apakah user punya akses ke modul tertentu
+Route::get('/sso/verify-access', [SsoController::class, 'verifyAccess'])
+    ->middleware(['jwt.verify', 'sso.client']);
 
 // ==========================================
 // PUBLIC ROUTES
 // ==========================================
 Route::post('/auth/login', 'Api\AuthController@auth');
+
+
+
 Route::post('/auth/login/tias', 'Api\AuthController@authTias');
 Route::post('/register', 'Api\AuthController@register');
 Route::post('/password/email', 'Api\AuthController@sendResetLinkEmail');
@@ -69,6 +83,8 @@ Route::group(['middleware' => ['jwt.verify']], function () {
     Route::get('/refresh', 'Api\AuthController@refresh');
     Route::get('/app_modul', 'Api\AppModuleController@index');
     Route::get('/call_user', 'Api\AuthController@call_user');
+
+    // ── SSO: Daftar modul yang dapat diakses user saat ini ──────────────────────
     Route::get('/my-modules', [MyModuleController::class, 'index']);
 
     // ── SSO: Daftar role yang dimiliki user di modul tertentu ──────────────────
@@ -83,6 +99,7 @@ Route::group(['middleware' => ['jwt.verify']], function () {
         Route::post('/change-password', [ProfileController::class, 'changePassword']);
     });
 
+    // Admin Routes
     Route::middleware(['check.role:admin'])->prefix('admins')->name('admins.')->group(function () {
         Route::get('/', [UserController::class, 'index'])->name('index');
         Route::post('/', [UserController::class, 'store'])->name('store');
@@ -119,6 +136,7 @@ Route::group(['middleware' => ['jwt.verify']], function () {
             Route::post('/{id}/reset-secret', [AppModuleController::class, 'resetSecret'])->name('reset-secret');
         });
 
+        // ── Roles ────────────────────────────────────────────────────────────────
         Route::prefix('roles')->name('roles.')->group(function () {
             Route::get('/', [RoleController::class, 'index'])->name('index');
             Route::post('/', [RoleController::class, 'store'])->name('store');
@@ -130,22 +148,22 @@ Route::group(['middleware' => ['jwt.verify']], function () {
         });
 
         // ── Jabatans ─────────────────────────────────────────────────────────────
-        // Route::prefix('jabatans')->name('jabatans.')->group(function () {
-        //     Route::get('/', [JabatanController::class, 'index'])->name('index');
-        //     Route::post('/', [JabatanController::class, 'store'])->name('store');
-        //     Route::get('/{id}', [JabatanController::class, 'show'])->name('show');
-        //     Route::put('/{id}', [JabatanController::class, 'update'])->name('update');
-        //     Route::delete('/{id}', [JabatanController::class, 'destroy'])->name('destroy');
-        // });
+        Route::prefix('jabatans')->name('jabatans.')->group(function () {
+            Route::get('/', [JabatanController::class, 'index'])->name('index');
+            Route::post('/', [JabatanController::class, 'store'])->name('store');
+            Route::get('/{id}', [JabatanController::class, 'show'])->name('show');
+            Route::put('/{id}', [JabatanController::class, 'update'])->name('update');
+            Route::delete('/{id}', [JabatanController::class, 'destroy'])->name('destroy');
+        });
 
         // ── Units ────────────────────────────────────────────────────────────────
-        // Route::prefix('units')->name('units.')->group(function () {
-        //     Route::get('/', [UnitController::class, 'index'])->name('index');
-        //     Route::post('/', [UnitController::class, 'store'])->name('store');
-        //     Route::get('/{id}', [UnitController::class, 'show'])->name('show');
-        //     Route::put('/{id}', [UnitController::class, 'update'])->name('update');
-        //     Route::delete('/{id}', [UnitController::class, 'destroy'])->name('destroy');
-        // });
+        Route::prefix('units')->name('units.')->group(function () {
+            Route::get('/', [UnitController::class, 'index'])->name('index');
+            Route::post('/', [UnitController::class, 'store'])->name('store');
+            Route::get('/{id}', [UnitController::class, 'show'])->name('show');
+            Route::put('/{id}', [UnitController::class, 'update'])->name('update');
+            Route::delete('/{id}', [UnitController::class, 'destroy'])->name('destroy');
+        });
 
         // ── User Unit Assignments ───────────────────────────────────────────────
         Route::post('/{id}/assign-unit', [UserController::class, 'assignUnit'])->name('assign-unit');
@@ -163,6 +181,7 @@ Route::group(['middleware' => ['jwt.verify']], function () {
             Route::delete('/{id}', [PermissionController::class, 'destroy'])->name('destroy');
         });
 
+        // ── Role ↔ Permission Assignments ────────────────────────────────────────
         Route::prefix('role-permissions')->name('role-permissions.')->group(function () {
             Route::get('/', [RoleHasPermissionController::class, 'index'])->name('index');
             Route::post('/assign', [RoleHasPermissionController::class, 'assign'])->name('assign');

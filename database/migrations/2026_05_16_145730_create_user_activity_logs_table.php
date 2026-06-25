@@ -10,15 +10,15 @@ return new class extends Migration
     {
         Schema::create('user_activity_logs', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('user_id')->nullable(); // user yang melakukan aksi
-            $table->unsignedBigInteger('actor_id')->nullable(); // siapa yang melakukan (bisa admin)
+            $table->uuid('user_id')->nullable(); // user yang melakukan aksi
+            $table->uuid('actor_id')->nullable(); // siapa yang melakukan (bisa admin)
             $table->string('type'); // login, logout, update_profile, change_password, reset_password, app_access
             $table->string('description'); // deskripsi singkat
             $table->json('metadata')->nullable(); // data tambahan (ip, app name, dll)
             $table->timestamp('created_at')->useCurrent();
 
-            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
-            $table->foreign('actor_id')->references('id')->on('users')->onDelete('set null');
+            $table->foreign('user_id')->references('user_id')->on('tb_users')->onDelete('cascade');
+            $table->foreign('actor_id')->references('user_id')->on('tb_users')->onDelete('set null');
         });
     }
 

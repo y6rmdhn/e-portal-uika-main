@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('user_login_logs', function (Blueprint $table) {
             $table->id();
             // nullable karena login gagal belum tentu ada user_id yang diketahui
-            $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->uuid('user_id')->nullable();
             $table->string('ip_address', 45);
             $table->text('user_agent')->nullable();
             $table->string('browser', 100)->nullable();
@@ -21,6 +21,8 @@ return new class extends Migration
             $table->enum('status', ['success', 'failed'])->default('success');
             $table->string('failure_reason', 100)->nullable();
             $table->timestamp('created_at')->useCurrent();
+
+            $table->foreign('user_id')->references('user_id')->on('tb_users')->nullOnDelete();
 
             // Index untuk query monitoring & cleanup
             $table->index(['user_id', 'created_at']);
