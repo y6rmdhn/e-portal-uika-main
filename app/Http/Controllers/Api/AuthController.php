@@ -357,18 +357,25 @@ class AuthController extends Controller
             $unit     = $user->getRelation('unit');
             $jabatans = $user->getRoleNames()->toArray(); // Hanya dari Spatie, tidak fallback ke role lama
 
+            $dataPribadi = DB::connection('pgsql')
+                ->table('tb_data_pribadi')
+                ->where('user_id', $user->user_id)
+                ->first();
+
             $userData = [
-                'id'        => $user->user_id,
-                'email'     => $user->email,
-                'name'      => $user->email,
-                'role'      => !empty($jabatans) ? $jabatans[0] : null, // null jika tidak punya jabatan
-                'role_id'   => $user->roles()->first()?->id,
-                'nidn'      => $user->nidn,
-                'npm'       => $user->npm,
-                'unit_id'   => $unit?->id,
-                'unit_name' => $unit?->nama_unit,
-                'jabatans'  => $jabatans, // Array jabatan aktual dari Spatie
-                'image'     => null,
+                'id'           => $user->user_id,
+                'email'        => $user->email,
+                'name'         => $dataPribadi?->nama_lengkap ?? $user->email,
+                'nama_lengkap' => $dataPribadi?->nama_lengkap ?? null,
+                'no_hp'        => $dataPribadi?->no_hp ?? null,
+                'image'        => $dataPribadi?->image ?? null,
+                'role'         => !empty($jabatans) ? $jabatans[0] : null,
+                'role_id'      => $user->roles()->first()?->id,
+                'nidn'         => $user->nidn,
+                'npm'          => $user->npm,
+                'unit_id'      => $unit?->id,
+                'unit_name'    => $unit?->nama_unit,
+                'jabatans'     => $jabatans,
             ];
 
             // Ambil semua permission user (jika admin/super-admin, ambil semua permission di system)
@@ -388,7 +395,6 @@ class AuthController extends Controller
                     $permissionsByModule[$permission->appModule_id][] = $permission->name;
                 }
             }
-        );
 
             // Filter jika ada appModule_id di query parameter
             $appModuleId = $request->query('appModule_id');
@@ -430,7 +436,6 @@ class AuthController extends Controller
             ], 500);
         }
     }
-}
 
     public function handleGoogleCallback()
     {
@@ -608,45 +613,45 @@ class AuthController extends Controller
     }
 
     public function validateNidn(Request $request)
-{
-    $nidn = $request->query('nidn');
-    if (!$nidn) return response()->json(['status' => 400, 'valid' => false, 'message' => 'NIDN wajib diisi.'], 400);
+    {
+        $nidn = $request->query('nidn');
+        if (!$nidn) return response()->json(['status' => 400, 'valid' => false, 'message' => 'NIDN wajib diisi.'], 400);
 
-    try {
-        $response = Http::withHeaders(['X-API-Key' => config('services.simpeg.api_key')])
-            ->get(config('services.simpeg.url') . '/api/external/validate/nidn', ['nidn' => $nidn]);
-        return response()->json($response->json(), $response->status());
-    } catch (\Exception $e) {
-        return response()->json(['status' => 500, 'valid' => false, 'message' => 'Gagal konek ke SIMPEG.'], 500);
+        try {
+            $response = Http::withHeaders(['X-API-Key' => config('services.simpeg.api_key')])
+                ->get(config('services.simpeg.url') . '/api/external/validate/nidn', ['nidn' => $nidn]);
+            return response()->json($response->json(), $response->status());
+        } catch (\Exception $e) {
+            return response()->json(['status' => 500, 'valid' => false, 'message' => 'Gagal konek ke SIMPEG.'], 500);
+        }
     }
-}
 
-public function validateNip(Request $request)
-{
-    $nip = $request->query('nip');
-    if (!$nip) return response()->json(['status' => 400, 'valid' => false, 'message' => 'NIP wajib diisi.'], 400);
+    public function validateNip(Request $request)
+    {
+        $nip = $request->query('nip');
+        if (!$nip) return response()->json(['status' => 400, 'valid' => false, 'message' => 'NIP wajib diisi.'], 400);
 
-    try {
-        $response = Http::withHeaders(['X-API-Key' => config('services.simpeg.api_key')])
-            ->get(config('services.simpeg.url') . '/api/external/validate/nip', ['nip' => $nip]);
-        return response()->json($response->json(), $response->status());
-    } catch (\Exception $e) {
-        return response()->json(['status' => 500, 'valid' => false, 'message' => 'Gagal konek ke SIMPEG.'], 500);
+        try {
+            $response = Http::withHeaders(['X-API-Key' => config('services.simpeg.api_key')])
+                ->get(config('services.simpeg.url') . '/api/external/validate/nip', ['nip' => $nip]);
+            return response()->json($response->json(), $response->status());
+        } catch (\Exception $e) {
+            return response()->json(['status' => 500, 'valid' => false, 'message' => 'Gagal konek ke SIMPEG.'], 500);
+        }
     }
-}
 
-public function validateNpm(Request $request)
-{
-    $npm = $request->query('npm');
-    if (!$npm) return response()->json(['status' => 400, 'valid' => false, 'message' => 'NPM wajib diisi.'], 400);
+    public function validateNpm(Request $request)
+    {
+        $npm = $request->query('npm');
+        if (!$npm) return response()->json(['status' => 400, 'valid' => false, 'message' => 'NPM wajib diisi.'], 400);
 
-    try {
-        $response = Http::get(config('services.siakad.url') . '/api/external/validate/npm', ['npm' => $npm]);
-        return response()->json($response->json(), $response->status());
-    } catch (\Exception $e) {
-        return response()->json(['status' => 500, 'valid' => false, 'message' => 'Gagal konek ke SIAKAD.'], 500);
+        try {
+            $response = Http::get(config('services.siakad.url') . '/api/external/validate/npm', ['npm' => $npm]);
+            return response()->json($response->json(), $response->status());
+        } catch (\Exception $e) {
+            return response()->json(['status' => 500, 'valid' => false, 'message' => 'Gagal konek ke SIAKAD.'], 500);
+        }
     }
-}
 
     private function getPermissionsForContext($user, $appModuleId, $roleId): array
     {

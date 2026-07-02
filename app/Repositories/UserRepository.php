@@ -5,6 +5,7 @@ namespace App\Repositories;
 use App\Models\User;
 use App\Models\UserJabatanUnit;
 use App\Repositories\Interfaces\UserRepositoryInterface;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
@@ -23,8 +24,8 @@ class UserRepository implements UserRepositoryInterface
             $search = $filters['search'];
             $query->where(function ($q) use ($search) {
                 $q->where('email', 'like', "%{$search}%")
-                  ->orWhere('nidn', 'like', "%{$search}%")
-                  ->orWhere('npm', 'like', "%{$search}%");
+                    ->orWhere('nidn', 'like', "%{$search}%")
+                    ->orWhere('npm', 'like', "%{$search}%");
             });
         }
 
@@ -198,12 +199,23 @@ class UserRepository implements UserRepositoryInterface
 
     public function delete(string $id): bool
     {
-        $user = $this->findById($id);
-        $user->update(['deleted_at' => now()]);
+        $this->findById($id); // validasi user ada, kalau gak ada throw ModelNotFoundException
 
-        // Clean local mappings
+        // Soft delete langsung ke pgsql
+        DB::connection('pgsql')
+            ->table('tb_users')
+            ->where('user_id', $id)
+            ->update(['deleted_at' => now()]);
+
+        // Clean local mappings di MySQL eportal
         UserJabatanUnit::where('user_id', $id)->delete();
-        $user->roles()->detach();
+
+        try {
+            $user = User::where('user_id', $id)->first();
+            $user?->roles()->detach();
+        } catch (\Exception $e) {
+            // ignore
+        }
 
         return true;
     }
