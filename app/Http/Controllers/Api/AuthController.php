@@ -36,6 +36,24 @@ class AuthController extends Controller
         protected ActivityLogService $activityLog,
     ) {}
 
+    public function checkId(Request $request)
+    {
+        $field = $request->query('field'); // 'npm' atau 'nidn'
+        $value = $request->query('value');
+
+        if (!in_array($field, ['npm', 'nidn'])) {
+            return response()->json(['exists' => false], 200);
+        }
+
+        $exists = DB::connection('pgsql')
+            ->table('tb_users')
+            ->whereRaw("TRIM({$field}) = ?", [trim($value)])
+            ->whereNull('deleted_at')
+            ->exists();
+
+        return response()->json(['exists' => $exists], 200);
+    }
+
     public function register(Request $request)
     {
         $validator = Validator::make($request->all(), [
