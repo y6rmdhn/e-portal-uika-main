@@ -54,6 +54,8 @@ Route::post('/auth/login', 'Api\AuthController@auth');
 
 Route::post('/auth/login/tias', 'Api\AuthController@authTias');
 Route::post('/register', 'Api\AuthController@register');
+Route::get('/public/units', [UnitController::class, 'index'])->name('public.units');
+Route::get('/public/jabatans', [JabatanController::class, 'index'])->name('public.jabatans');
 Route::post('/password/email', 'Api\AuthController@sendResetLinkEmail');
 Route::post('/password/reset', 'Api\AuthController@resetPassword');
 Route::get('/auth/google/redirect', 'Api\AuthController@redirectToGoogle');

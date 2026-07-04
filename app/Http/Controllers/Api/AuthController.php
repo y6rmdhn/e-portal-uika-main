@@ -44,7 +44,8 @@ class AuthController extends Controller
             'role'     => 'required|in:Mahasiswa,Dosen,Admin,Pegawai,Dosen_Ext',
             'nidn'     => 'nullable|string',
             'npm'      => 'nullable|string',
-            'nama'     => 'nullable|string|max:255', // ← nama dari hasil validasi (Mahasiswa/Dosen/Pegawai)
+            'nama'     => 'nullable|string|max:255',
+            'jabatan_id' => 'nullable|integer|exists:m_jabatan,id',
             // Field khusus Dosen Eksternal
             'nama_lengkap'  => 'required_if:role,Dosen_Ext|nullable|string|max:255',
             'nik'           => 'required_if:role,Dosen_Ext|nullable|string|max:60',
@@ -62,8 +63,8 @@ class AuthController extends Controller
 
         $isDosenExt = $request->role === 'Dosen_Ext';
 
-        // Cek email sudah ada di UCL
-        $exists = DB::connection('ucl')
+        // Cek email sudah ada
+        $exists = DB::connection('pgsql')
             ->table('tb_users')
             ->where('email', $request->email)
             ->whereNull('deleted_at')
@@ -73,11 +74,11 @@ class AuthController extends Controller
             return response()->json(['status' => 422, 'message' => 'Email sudah terdaftar.'], 422);
         }
 
-        // Cek NIK duplikat di tb_data_pribadi (khusus Dosen_Ext)
+        // Cek NIK duplikat (Dosen_Ext)
         if ($isDosenExt && $request->nik) {
-            $nikExists = DB::connection('ucl')
+            $nikExists = DB::connection('pgsql')
                 ->table('tb_data_pribadi')
-                ->where('nik', $request->nik)
+                ->where('nik', trim($request->nik))
                 ->exists();
 
             if ($nikExists) {
@@ -88,10 +89,11 @@ class AuthController extends Controller
         $nidnToSave = $isDosenExt ? null : $request->nidn;
         $npmToSave  = $isDosenExt ? null : $request->npm;
 
+        // Cek NPM duplikat
         if ($npmToSave) {
-            $npmExists = DB::connection('ucl')
+            $npmExists = DB::connection('pgsql')
                 ->table('tb_users')
-                ->where('npm', $npmToSave)
+                ->whereRaw("TRIM(npm) = ?", [trim($npmToSave)])
                 ->whereNull('deleted_at')
                 ->exists();
 
@@ -100,10 +102,11 @@ class AuthController extends Controller
             }
         }
 
+        // Cek NIDN duplikat
         if ($nidnToSave) {
-            $nidnExists = DB::connection('ucl')
+            $nidnExists = DB::connection('pgsql')
                 ->table('tb_users')
-                ->where('nidn', $nidnToSave)
+                ->whereRaw("TRIM(nidn) = ?", [trim($nidnToSave)])
                 ->whereNull('deleted_at')
                 ->exists();
 
@@ -118,21 +121,21 @@ class AuthController extends Controller
         DB::beginTransaction();
         try {
             // Insert ke tb_users
-            DB::connection('ucl')->table('tb_users')->insert([
+            DB::connection('pgsql')->table('tb_users')->insert([
                 'user_id'    => $userId,
                 'email'      => $request->email,
                 'password'   => Hash::make($request->password),
                 'role'       => $request->role,
-                'nidn'       => $nidnToSave,
-                'npm'        => $npmToSave,
+                'nidn'       => $nidnToSave ? trim($nidnToSave) : null,
+                'npm'        => $npmToSave ? trim($npmToSave) : null,
                 'isverified' => $isverified,
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
 
+            // Insert ke tb_data_pribadi
             if ($isDosenExt) {
-                // Dosen Eksternal — form lengkap
-                DB::connection('ucl')->table('tb_data_pribadi')->insert([
+                DB::connection('pgsql')->table('tb_data_pribadi')->insert([
                     'dp_id'         => (string) \Illuminate\Support\Str::uuid(),
                     'user_id'       => $userId,
                     'nama_lengkap'  => $request->nama_lengkap,
@@ -146,8 +149,7 @@ class AuthController extends Controller
                     'instansi_ext'  => $request->instansi,
                 ]);
             } else {
-                // Mahasiswa/Dosen/Pegawai — minimal nama dari hasil validasi
-                DB::connection('ucl')->table('tb_data_pribadi')->insert([
+                DB::connection('pgsql')->table('tb_data_pribadi')->insert([
                     'dp_id'        => (string) \Illuminate\Support\Str::uuid(),
                     'user_id'      => $userId,
                     'nama_lengkap' => $request->nama,
@@ -156,6 +158,29 @@ class AuthController extends Controller
             }
 
             DB::commit();
+
+            // Auto-assign role/jabatan berdasarkan role UCL
+            $jabatanMap = [
+                'Mahasiswa'  => 102,
+                'Dosen'      => 21,
+                'Dosen_Ext'  => 21,
+                // Pegawai → dari request jabatan_id
+            ];
+
+            // Pegawai pakai jabatan_id dari request, role lain pakai jabatanMap
+            $jabatanId = $request->jabatan_id ?? ($jabatanMap[$request->role] ?? null);
+
+            if ($jabatanId) {
+                $jabatan = \App\Models\Jabatan::find($jabatanId);
+                $newUser = \App\Models\User::where('user_id', $userId)->first();
+                if ($jabatan && $newUser) {
+                    try {
+                        $newUser->assignRole($jabatan->name);
+                    } catch (\Exception $e) {
+                        \Log::warning('Auto-assign role gagal: ' . $e->getMessage());
+                    }
+                }
+            }
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['status' => 500, 'message' => 'Registrasi gagal: ' . $e->getMessage()], 500);

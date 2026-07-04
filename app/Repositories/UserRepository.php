@@ -223,7 +223,12 @@ class UserRepository implements UserRepositoryInterface
     public function toggleActive(string $id): object
     {
         $user = $this->findById($id);
-        $user->update(['isverified' => !$user->isverified]);
+
+        DB::connection('pgsql')
+            ->table('tb_users')
+            ->where('user_id', $id)
+            ->update(['isverified' => !$user->isverified]);
+
         return $this->findById($id);
     }
 
