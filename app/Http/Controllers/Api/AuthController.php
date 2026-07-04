@@ -480,6 +480,11 @@ class AuthController extends Controller
         }
     }
 
+    public function redirectToGoogle()
+    {
+        return Socialite::driver('google')->stateless()->redirect();
+    }
+
     public function handleGoogleCallback()
     {
         try {
@@ -694,6 +699,35 @@ class AuthController extends Controller
         } catch (\Exception $e) {
             return response()->json(['status' => 500, 'valid' => false, 'message' => 'Gagal konek ke SIAKAD.'], 500);
         }
+    }
+
+    public function sendResetLinkEmail(Request $request)
+    {
+        $request->validate(['email' => 'required|email']);
+        $status = Password::sendResetLink($request->only('email'));
+        if ($status === Password::RESET_LINK_SENT) {
+            return response()->json(['status' => 200, 'success' => true, 'message' => 'Reset link sent to your email.'], 200);
+        }
+        return response()->json(['status' => 400, 'success' => false, 'message' => 'Email not found or failed to send.'], 400);
+    }
+
+    public function resetPassword(Request $request)
+    {
+        $request->validate([
+            'token'    => 'required',
+            'email'    => 'required|email',
+            'password' => 'required|min:8|confirmed',
+        ]);
+        $status = Password::reset(
+            $request->only('email', 'password', 'password_confirmation', 'token'),
+            function ($user, $password) {
+                $user->forceFill(['password' => bcrypt($password)])->save();
+            }
+        );
+        if ($status === Password::PASSWORD_RESET) {
+            return response()->json(['status' => 200, 'success' => true, 'message' => 'Password reset successfully.'], 200);
+        }
+        return response()->json(['status' => 400, 'success' => false, 'message' => 'Failed to reset password.'], 400);
     }
 
     private function getPermissionsForContext($user, $appModuleId, $roleId): array
