@@ -27,7 +27,7 @@ class AuthServiceProvider extends ServiceProvider
         $this->registerPolicies();
 
         ResetPassword::createUrlUsing(function ($notifiable, string $token) {
-        return 'http://localhost:5173/reset-password?token=' . $token . '&email=' . urlencode($notifiable->email);
+        return 'http://103.158.196.79/eportal/reset-password?token=' . $token . '&email=' . urlencode($notifiable->email);
     });
     }
 }

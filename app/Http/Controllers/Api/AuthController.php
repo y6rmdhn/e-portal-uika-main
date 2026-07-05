@@ -496,11 +496,11 @@ class AuthController extends Controller
                 ->first();
 
             if (!$user) {
-                return redirect('http://localhost:5173/login?error=AkunTidakTerdaftar');
+                return redirect('http://103.158.196.79/eportal/login?error=AkunTidakTerdaftar');
             }
 
             if (!$user->isverified) {
-                return redirect('http://localhost:5173/login?error=AkunBelumVerifikasi');
+                return redirect('http://103.158.196.79/eportal/login?error=AkunBelumVerifikasi');
             }
 
             $token = FacadesJWTAuth::fromUser($user);
@@ -520,11 +520,11 @@ class AuthController extends Controller
                 $isProduction ? 'None' : 'Lax'
             );
 
-            return redirect('http://localhost:5173/auth/google/success')
+            return redirect('http://103.158.196.79/eportal/auth/google/success')
                 ->withCookie($cookie);
         } catch (\Exception $e) {
             \Log::error('Google login error: ' . $e->getMessage());
-            return redirect('http://localhost:5173/login?error=GoogleLoginFailed');
+            return redirect('http://103.158.196.79/eportal/login?error=GoogleLoginFailed');
         }
     }
 
