@@ -55,161 +55,192 @@ class AuthController extends Controller
     }
 
     public function register(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'email'    => 'required|email',
-            'password' => 'required|string|min:8|confirmed',
-            'role'     => 'required|in:Mahasiswa,Dosen,Admin,Pegawai,Dosen_Ext',
-            'nidn'     => 'nullable|string',
-            'npm'      => 'nullable|string',
-            'nama'     => 'nullable|string|max:255',
-            'jabatan_id' => 'nullable|integer|exists:m_jabatan,id',
-            // Field khusus Dosen Eksternal
-            'nama_lengkap'  => 'required_if:role,Dosen_Ext|nullable|string|max:255',
-            'nik'           => 'required_if:role,Dosen_Ext|nullable|string|max:60',
-            'instansi'      => 'required_if:role,Dosen_Ext|nullable|string|max:255',
-            'jenkel'        => 'nullable|in:L,P',
-            'tanggal_lahir' => 'nullable|date',
-            'tempat_lahir'  => 'nullable|string|max:255',
-            'agama'         => 'nullable|string|max:25',
-            'no_hp'         => 'nullable|string|max:50',
-        ]);
+{
+    $validator = Validator::make($request->all(), [
+        'email'      => 'required|email',
+        'password'   => 'required|string|min:8|confirmed',
+        'role'       => 'required|in:Mahasiswa,Dosen,Admin,Pegawai,Dosen_Ext',
+        'nidn'       => 'nullable|string',
+        'npm'        => 'nullable|string',
+        'nama'       => 'nullable|string|max:255',
+        'jabatan_id' => 'nullable|integer|exists:m_jabatan,id',
+        'unit_code'  => 'nullable|string|max:50',
+        'unit_nama'  => 'nullable|string|max:100',
+        // Field khusus Dosen Eksternal
+        'nama_lengkap'  => 'required_if:role,Dosen_Ext|nullable|string|max:255',
+        'nik'           => 'required_if:role,Dosen_Ext|nullable|string|max:60',
+        'instansi'      => 'required_if:role,Dosen_Ext|nullable|string|max:255',
+        'jenkel'        => 'nullable|in:L,P',
+        'tanggal_lahir' => 'nullable|date',
+        'tempat_lahir'  => 'nullable|string|max:255',
+        'agama'         => 'nullable|string|max:25',
+        'no_hp'         => 'nullable|string|max:50',
+    ]);
 
-        if ($validator->fails()) {
-            return response()->json(['status' => 422, 'message' => $validator->errors()->first()], 422);
+    if ($validator->fails()) {
+        return response()->json(['status' => 422, 'message' => $validator->errors()->first()], 422);
+    }
+
+    $isDosenExt = $request->role === 'Dosen_Ext';
+
+    // Cek email sudah ada
+    $exists = DB::connection('pgsql')
+        ->table('tb_users')
+        ->where('email', $request->email)
+        ->whereNull('deleted_at')
+        ->exists();
+
+    if ($exists) {
+        return response()->json(['status' => 422, 'message' => 'Email sudah terdaftar.'], 422);
+    }
+
+    // Cek NIK duplikat (Dosen_Ext)
+    if ($isDosenExt && $request->nik) {
+        $nikExists = DB::connection('pgsql')
+            ->table('tb_data_pribadi')
+            ->where('nik', trim($request->nik))
+            ->exists();
+
+        if ($nikExists) {
+            return response()->json(['status' => 422, 'message' => 'NIK/NIP sudah terdaftar.'], 422);
         }
+    }
 
-        $isDosenExt = $request->role === 'Dosen_Ext';
+    $nidnToSave = $isDosenExt ? null : $request->nidn;
+    $npmToSave  = $isDosenExt ? null : $request->npm;
 
-        // Cek email sudah ada
-        $exists = DB::connection('pgsql')
+    // Cek NPM duplikat
+    if ($npmToSave) {
+        $npmExists = DB::connection('pgsql')
             ->table('tb_users')
-            ->where('email', $request->email)
+            ->whereRaw("TRIM(npm) = ?", [trim($npmToSave)])
             ->whereNull('deleted_at')
             ->exists();
 
-        if ($exists) {
-            return response()->json(['status' => 422, 'message' => 'Email sudah terdaftar.'], 422);
+        if ($npmExists) {
+            return response()->json(['status' => 422, 'message' => 'NPM sudah terdaftar. Silakan login.'], 422);
         }
+    }
 
-        // Cek NIK duplikat (Dosen_Ext)
-        if ($isDosenExt && $request->nik) {
-            $nikExists = DB::connection('pgsql')
-                ->table('tb_data_pribadi')
-                ->where('nik', trim($request->nik))
-                ->exists();
+    // Cek NIDN duplikat
+    if ($nidnToSave) {
+        $nidnExists = DB::connection('pgsql')
+            ->table('tb_users')
+            ->whereRaw("TRIM(nidn) = ?", [trim($nidnToSave)])
+            ->whereNull('deleted_at')
+            ->exists();
 
-            if ($nikExists) {
-                return response()->json(['status' => 422, 'message' => 'NIK/NIP sudah terdaftar.'], 422);
-            }
+        if ($nidnExists) {
+            return response()->json(['status' => 422, 'message' => 'NIDN sudah terdaftar. Silakan login.'], 422);
         }
+    }
 
-        $nidnToSave = $isDosenExt ? null : $request->nidn;
-        $npmToSave  = $isDosenExt ? null : $request->npm;
+    $isverified = $isDosenExt ? false : true;
+    $userId = (string) \Illuminate\Support\Str::uuid();
 
-        // Cek NPM duplikat
-        if ($npmToSave) {
-            $npmExists = DB::connection('pgsql')
-                ->table('tb_users')
-                ->whereRaw("TRIM(npm) = ?", [trim($npmToSave)])
-                ->whereNull('deleted_at')
-                ->exists();
+    DB::beginTransaction();
+    try {
+        // Insert ke tb_users
+        DB::connection('pgsql')->table('tb_users')->insert([
+            'user_id'    => $userId,
+            'email'      => $request->email,
+            'password'   => Hash::make($request->password),
+            'role'       => $request->role,
+            'nidn'       => $nidnToSave ? trim($nidnToSave) : null,
+            'npm'        => $npmToSave ? trim($npmToSave) : null,
+            'isverified' => $isverified,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
 
-            if ($npmExists) {
-                return response()->json(['status' => 422, 'message' => 'NPM sudah terdaftar. Silakan login.'], 422);
-            }
-        }
-
-        // Cek NIDN duplikat
-        if ($nidnToSave) {
-            $nidnExists = DB::connection('pgsql')
-                ->table('tb_users')
-                ->whereRaw("TRIM(nidn) = ?", [trim($nidnToSave)])
-                ->whereNull('deleted_at')
-                ->exists();
-
-            if ($nidnExists) {
-                return response()->json(['status' => 422, 'message' => 'NIDN sudah terdaftar. Silakan login.'], 422);
-            }
-        }
-
-        $isverified = $isDosenExt ? false : true;
-        $userId = (string) \Illuminate\Support\Str::uuid();
-
-        DB::beginTransaction();
-        try {
-            // Insert ke tb_users
-            DB::connection('pgsql')->table('tb_users')->insert([
-                'user_id'    => $userId,
-                'email'      => $request->email,
-                'password'   => Hash::make($request->password),
-                'role'       => $request->role,
-                'nidn'       => $nidnToSave ? trim($nidnToSave) : null,
-                'npm'        => $npmToSave ? trim($npmToSave) : null,
-                'isverified' => $isverified,
-                'created_at' => now(),
-                'updated_at' => now(),
+        // Insert ke tb_data_pribadi
+        if ($isDosenExt) {
+            DB::connection('pgsql')->table('tb_data_pribadi')->insert([
+                'dp_id'         => (string) \Illuminate\Support\Str::uuid(),
+                'user_id'       => $userId,
+                'nama_lengkap'  => $request->nama_lengkap,
+                'jenkel'        => $request->jenkel,
+                'tanggal_lahir' => $request->tanggal_lahir,
+                'tempat_lahir'  => $request->tempat_lahir,
+                'agama'         => $request->agama,
+                'email'         => $request->email,
+                'no_hp'         => $request->no_hp,
+                'nik'           => $request->nik,
+                'instansi_ext'  => $request->instansi,
             ]);
+        } else {
+            DB::connection('pgsql')->table('tb_data_pribadi')->insert([
+                'dp_id'        => (string) \Illuminate\Support\Str::uuid(),
+                'user_id'      => $userId,
+                'nama_lengkap' => $request->nama,
+                'email'        => $request->email,
+            ]);
+        }
 
-            // Insert ke tb_data_pribadi
-            if ($isDosenExt) {
-                DB::connection('pgsql')->table('tb_data_pribadi')->insert([
-                    'dp_id'         => (string) \Illuminate\Support\Str::uuid(),
-                    'user_id'       => $userId,
-                    'nama_lengkap'  => $request->nama_lengkap,
-                    'jenkel'        => $request->jenkel,
-                    'tanggal_lahir' => $request->tanggal_lahir,
-                    'tempat_lahir'  => $request->tempat_lahir,
-                    'agama'         => $request->agama,
-                    'email'         => $request->email,
-                    'no_hp'         => $request->no_hp,
-                    'nik'           => $request->nik,
-                    'instansi_ext'  => $request->instansi,
-                ]);
-            } else {
-                DB::connection('pgsql')->table('tb_data_pribadi')->insert([
-                    'dp_id'        => (string) \Illuminate\Support\Str::uuid(),
-                    'user_id'      => $userId,
-                    'nama_lengkap' => $request->nama,
-                    'email'        => $request->email,
-                ]);
-            }
+        DB::commit();
 
-            DB::commit();
+        // ── Auto-assign jabatan ──
+        $jabatanMap = [
+            'Mahasiswa'  => 102,
+            'Dosen'      => 21,
+            'Dosen_Ext'  => 21,
+            // Pegawai → dari request jabatan_id
+        ];
 
-            // Auto-assign role/jabatan berdasarkan role UCL
-            $jabatanMap = [
-                'Mahasiswa'  => 102,
-                'Dosen'      => 21,
-                'Dosen_Ext'  => 21,
-                // Pegawai → dari request jabatan_id
-            ];
+        $jabatanId = $request->jabatan_id ?? ($jabatanMap[$request->role] ?? null);
+        $newUser = \App\Models\User::where('user_id', $userId)->first();
 
-            // Pegawai pakai jabatan_id dari request, role lain pakai jabatanMap
-            $jabatanId = $request->jabatan_id ?? ($jabatanMap[$request->role] ?? null);
-
-            if ($jabatanId) {
-                $jabatan = \App\Models\Jabatan::find($jabatanId);
-                $newUser = \App\Models\User::where('user_id', $userId)->first();
-                if ($jabatan && $newUser) {
-                    try {
-                        $newUser->assignRole($jabatan->name);
-                    } catch (\Exception $e) {
-                        \Log::warning('Auto-assign role gagal: ' . $e->getMessage());
-                    }
+        if ($jabatanId && $newUser) {
+            $jabatan = \App\Models\Jabatan::find($jabatanId);
+            if ($jabatan) {
+                try {
+                    $newUser->assignRole($jabatan->name);
+                } catch (\Exception $e) {
+                    \Log::warning('Auto-assign role gagal: ' . $e->getMessage());
                 }
             }
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json(['status' => 500, 'message' => 'Registrasi gagal: ' . $e->getMessage()], 500);
         }
 
-        $message = $isDosenExt
-            ? 'Registrasi berhasil. Akun Anda menunggu verifikasi oleh admin.'
-            : 'Registrasi berhasil.';
+        // ── Auto-assign unit (Dosen & Pegawai dari SIMPEG) ──
+        if (in_array($request->role, ['Dosen', 'Pegawai']) && $request->unit_code && $request->unit_nama) {
+            // Cari unit di m_unit
+            $unit = \App\Models\Unit::where('code', $request->unit_code)->first();
 
-        return response()->json(['status' => 201, 'message' => $message], 201);
+            // Kalau gak ada → insert unit baru dari data SIMPEG
+            if (!$unit) {
+                $unit = \App\Models\Unit::create([
+                    'code'      => $request->unit_code,
+                    'nama_unit' => $request->unit_nama,
+                ]);
+            }
+
+            if ($unit && $jabatanId && $newUser) {
+                // Insert ke trx_user_jabatan_unit
+                \App\Models\UserJabatanUnit::firstOrCreate([
+                    'user_id'    => $userId,
+                    'jabatan_id' => $jabatanId,
+                    'unit_id'    => $unit->id,
+                ]);
+
+                // Update department_code di tb_users pgsql
+                DB::connection('pgsql')
+                    ->table('tb_users')
+                    ->where('user_id', $userId)
+                    ->update(['department_code' => $unit->code]);
+            }
+        }
+
+    } catch (\Exception $e) {
+        DB::rollBack();
+        return response()->json(['status' => 500, 'message' => 'Registrasi gagal: ' . $e->getMessage()], 500);
     }
+
+    $message = $isDosenExt
+        ? 'Registrasi berhasil. Akun Anda menunggu verifikasi oleh admin.'
+        : 'Registrasi berhasil.';
+
+    return response()->json(['status' => 201, 'message' => $message], 201);
+}
 
     public function auth(Request $request)
     {
