@@ -55,192 +55,185 @@ class AuthController extends Controller
     }
 
     public function register(Request $request)
-{
-    $validator = Validator::make($request->all(), [
-        'email'      => 'required|email',
-        'password'   => 'required|string|min:8|confirmed',
-        'role'       => 'required|in:Mahasiswa,Dosen,Admin,Pegawai,Dosen_Ext',
-        'nidn'       => 'nullable|string',
-        'npm'        => 'nullable|string',
-        'nama'       => 'nullable|string|max:255',
-        'jabatan_id' => 'nullable|integer|exists:m_jabatan,id',
-        'unit_code'  => 'nullable|string|max:50',
-        'unit_nama'  => 'nullable|string|max:100',
-        // Field khusus Dosen Eksternal
-        'nama_lengkap'  => 'required_if:role,Dosen_Ext|nullable|string|max:255',
-        'nik'           => 'required_if:role,Dosen_Ext|nullable|string|max:60',
-        'instansi'      => 'required_if:role,Dosen_Ext|nullable|string|max:255',
-        'jenkel'        => 'nullable|in:L,P',
-        'tanggal_lahir' => 'nullable|date',
-        'tempat_lahir'  => 'nullable|string|max:255',
-        'agama'         => 'nullable|string|max:25',
-        'no_hp'         => 'nullable|string|max:50',
-    ]);
-
-    if ($validator->fails()) {
-        return response()->json(['status' => 422, 'message' => $validator->errors()->first()], 422);
-    }
-
-    $isDosenExt = $request->role === 'Dosen_Ext';
-
-    // Cek email sudah ada
-    $exists = DB::connection('pgsql')
-        ->table('tb_users')
-        ->where('email', $request->email)
-        ->whereNull('deleted_at')
-        ->exists();
-
-    if ($exists) {
-        return response()->json(['status' => 422, 'message' => 'Email sudah terdaftar.'], 422);
-    }
-
-    // Cek NIK duplikat (Dosen_Ext)
-    if ($isDosenExt && $request->nik) {
-        $nikExists = DB::connection('pgsql')
-            ->table('tb_data_pribadi')
-            ->where('nik', trim($request->nik))
-            ->exists();
-
-        if ($nikExists) {
-            return response()->json(['status' => 422, 'message' => 'NIK/NIP sudah terdaftar.'], 422);
-        }
-    }
-
-    $nidnToSave = $isDosenExt ? null : $request->nidn;
-    $npmToSave  = $isDosenExt ? null : $request->npm;
-
-    // Cek NPM duplikat
-    if ($npmToSave) {
-        $npmExists = DB::connection('pgsql')
-            ->table('tb_users')
-            ->whereRaw("TRIM(npm) = ?", [trim($npmToSave)])
-            ->whereNull('deleted_at')
-            ->exists();
-
-        if ($npmExists) {
-            return response()->json(['status' => 422, 'message' => 'NPM sudah terdaftar. Silakan login.'], 422);
-        }
-    }
-
-    // Cek NIDN duplikat
-    if ($nidnToSave) {
-        $nidnExists = DB::connection('pgsql')
-            ->table('tb_users')
-            ->whereRaw("TRIM(nidn) = ?", [trim($nidnToSave)])
-            ->whereNull('deleted_at')
-            ->exists();
-
-        if ($nidnExists) {
-            return response()->json(['status' => 422, 'message' => 'NIDN sudah terdaftar. Silakan login.'], 422);
-        }
-    }
-
-    $isverified = $isDosenExt ? false : true;
-    $userId = (string) \Illuminate\Support\Str::uuid();
-
-    DB::beginTransaction();
-    try {
-        // Insert ke tb_users
-        DB::connection('pgsql')->table('tb_users')->insert([
-            'user_id'    => $userId,
-            'email'      => $request->email,
-            'password'   => Hash::make($request->password),
-            'role'       => $request->role,
-            'nidn'       => $nidnToSave ? trim($nidnToSave) : null,
-            'npm'        => $npmToSave ? trim($npmToSave) : null,
-            'isverified' => $isverified,
-            'created_at' => now(),
-            'updated_at' => now(),
+    {
+        $validator = Validator::make($request->all(), [
+            'email'      => 'required|email',
+            'password'   => 'required|string|min:8|confirmed',
+            'role'       => 'required|in:Mahasiswa,Dosen,Admin,Pegawai,Dosen_Ext',
+            'nidn'       => 'nullable|string',
+            'npm'        => 'nullable|string',
+            'nama'       => 'nullable|string|max:255',
+            'jabatan_id' => 'nullable|integer|exists:m_jabatan,id',
+            'unit_code'  => 'nullable|string|max:50',
+            'unit_nama'  => 'nullable|string|max:100',
+            'nama_lengkap'  => 'required_if:role,Dosen_Ext|nullable|string|max:255',
+            'nik'           => 'required_if:role,Dosen_Ext|nullable|string|max:60',
+            'instansi'      => 'required_if:role,Dosen_Ext|nullable|string|max:255',
+            'jenkel'        => 'nullable|in:L,P',
+            'tanggal_lahir' => 'nullable|date',
+            'tempat_lahir'  => 'nullable|string|max:255',
+            'agama'         => 'nullable|string|max:25',
+            'no_hp'         => 'nullable|string|max:50',
         ]);
 
-        // Insert ke tb_data_pribadi
-        if ($isDosenExt) {
-            DB::connection('pgsql')->table('tb_data_pribadi')->insert([
-                'dp_id'         => (string) \Illuminate\Support\Str::uuid(),
-                'user_id'       => $userId,
-                'nama_lengkap'  => $request->nama_lengkap,
-                'jenkel'        => $request->jenkel,
-                'tanggal_lahir' => $request->tanggal_lahir,
-                'tempat_lahir'  => $request->tempat_lahir,
-                'agama'         => $request->agama,
-                'email'         => $request->email,
-                'no_hp'         => $request->no_hp,
-                'nik'           => $request->nik,
-                'instansi_ext'  => $request->instansi,
-            ]);
-        } else {
-            DB::connection('pgsql')->table('tb_data_pribadi')->insert([
-                'dp_id'        => (string) \Illuminate\Support\Str::uuid(),
-                'user_id'      => $userId,
-                'nama_lengkap' => $request->nama,
-                'email'        => $request->email,
-            ]);
+        if ($validator->fails()) {
+            return response()->json(['status' => 422, 'message' => $validator->errors()->first()], 422);
         }
 
-        DB::commit();
+        $isDosenExt = $request->role === 'Dosen_Ext';
 
-        // ── Auto-assign jabatan ──
-        $jabatanMap = [
-            'Mahasiswa'  => 102,
-            'Dosen'      => 21,
-            'Dosen_Ext'  => 21,
-            // Pegawai → dari request jabatan_id
-        ];
+        $exists = DB::connection('pgsql')
+            ->table('tb_users')
+            ->where('email', $request->email)
+            ->whereNull('deleted_at')
+            ->exists();
 
-        $jabatanId = $request->jabatan_id ?? ($jabatanMap[$request->role] ?? null);
-        $newUser = \App\Models\User::where('user_id', $userId)->first();
+        if ($exists) {
+            return response()->json(['status' => 422, 'message' => 'Email sudah terdaftar.'], 422);
+        }
 
-        if ($jabatanId && $newUser) {
-            $jabatan = \App\Models\Jabatan::find($jabatanId);
-            if ($jabatan) {
-                try {
-                    $newUser->assignRole($jabatan->name);
-                } catch (\Exception $e) {
-                    \Log::warning('Auto-assign role gagal: ' . $e->getMessage());
+        if ($isDosenExt && $request->nik) {
+            $nikExists = DB::connection('pgsql')
+                ->table('tb_data_pribadi')
+                ->where('nik', trim($request->nik))
+                ->exists();
+
+            if ($nikExists) {
+                return response()->json(['status' => 422, 'message' => 'NIK/NIP sudah terdaftar.'], 422);
+            }
+        }
+
+        $nidnToSave = $isDosenExt ? null : $request->nidn;
+        $npmToSave  = $isDosenExt ? null : $request->npm;
+
+        if ($npmToSave) {
+            $npmExists = DB::connection('pgsql')
+                ->table('tb_users')
+                ->whereRaw("TRIM(npm) = ?", [trim($npmToSave)])
+                ->whereNull('deleted_at')
+                ->exists();
+
+            if ($npmExists) {
+                return response()->json(['status' => 422, 'message' => 'NPM sudah terdaftar. Silakan login.'], 422);
+            }
+        }
+
+        if ($nidnToSave) {
+            $nidnExists = DB::connection('pgsql')
+                ->table('tb_users')
+                ->whereRaw("TRIM(nidn) = ?", [trim($nidnToSave)])
+                ->whereNull('deleted_at')
+                ->exists();
+
+            if ($nidnExists) {
+                return response()->json(['status' => 422, 'message' => 'NIDN sudah terdaftar. Silakan login.'], 422);
+            }
+        }
+
+        $isverified = $isDosenExt ? false : true;
+        $userId = (string) \Illuminate\Support\Str::uuid();
+
+        DB::beginTransaction();
+        try {
+            DB::connection('pgsql')->table('tb_users')->insert([
+                'user_id'    => $userId,
+                'email'      => $request->email,
+                'password'   => Hash::make($request->password),
+                'role'       => $request->role,
+                'nidn'       => $nidnToSave ? trim($nidnToSave) : null,
+                'npm'        => $npmToSave ? trim($npmToSave) : null,
+                'isverified' => $isverified,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            if ($isDosenExt) {
+                DB::connection('pgsql')->table('tb_data_pribadi')->insert([
+                    'dp_id'         => (string) \Illuminate\Support\Str::uuid(),
+                    'user_id'       => $userId,
+                    'nama_lengkap'  => $request->nama_lengkap,
+                    'jenkel'        => $request->jenkel,
+                    'tanggal_lahir' => $request->tanggal_lahir,
+                    'tempat_lahir'  => $request->tempat_lahir,
+                    'agama'         => $request->agama,
+                    'email'         => $request->email,
+                    'no_hp'         => $request->no_hp,
+                    'nik'           => $request->nik,
+                    'instansi_ext'  => $request->instansi,
+                ]);
+            } else {
+                DB::connection('pgsql')->table('tb_data_pribadi')->insert([
+                    'dp_id'        => (string) \Illuminate\Support\Str::uuid(),
+                    'user_id'      => $userId,
+                    'nama_lengkap' => $request->nama,
+                    'email'        => $request->email,
+                ]);
+            }
+
+            DB::commit();
+
+            // ── Auto-assign jabatan ──
+            $jabatanMap = [
+                'Mahasiswa'  => 102,
+                'Dosen'      => 21,
+                'Dosen_Ext'  => 21,
+            ];
+
+            $jabatanId = $request->jabatan_id ?? ($jabatanMap[$request->role] ?? null);
+            $newUser = \App\Models\User::where('user_id', $userId)->first();
+
+            if ($jabatanId && $newUser) {
+                $jabatan = \App\Models\Jabatan::find($jabatanId);
+                if ($jabatan) {
+                    try {
+                        $newUser->assignRole($jabatan->name);
+                    } catch (\Exception $e) {
+                        \Log::warning('Auto-assign role gagal: ' . $e->getMessage());
+                    }
                 }
-            }
-        }
 
-        // ── Auto-assign unit (Dosen & Pegawai dari SIMPEG) ──
-        if (in_array($request->role, ['Dosen', 'Pegawai']) && $request->unit_code && $request->unit_nama) {
-            // Cari unit di m_unit
-            $unit = \App\Models\Unit::where('code', $request->unit_code)->first();
-
-            // Kalau gak ada → insert unit baru dari data SIMPEG
-            if (!$unit) {
-                $unit = \App\Models\Unit::create([
-                    'code'      => $request->unit_code,
-                    'nama_unit' => $request->unit_nama,
-                ]);
-            }
-
-            if ($unit && $jabatanId && $newUser) {
-                // Insert ke trx_user_jabatan_unit
-                \App\Models\UserJabatanUnit::firstOrCreate([
-                    'user_id'    => $userId,
-                    'jabatan_id' => $jabatanId,
-                    'unit_id'    => $unit->id,
-                ]);
-
-                // Update department_code di tb_users pgsql
+                // ← tambah ini: update role_id di tb_users pgsql
                 DB::connection('pgsql')
                     ->table('tb_users')
                     ->where('user_id', $userId)
-                    ->update(['department_code' => $unit->code]);
+                    ->update(['role_id' => $jabatanId]);
             }
+
+            // ── Auto-assign unit ──
+            if ($request->unit_code && $request->unit_nama) {
+                $unit = \App\Models\Unit::where('code', $request->unit_code)->first();
+
+                if (!$unit) {
+                    $unit = \App\Models\Unit::create([
+                        'code'      => $request->unit_code,
+                        'nama_unit' => $request->unit_nama,
+                    ]);
+                }
+
+                if ($unit && $jabatanId && $newUser) {
+                    \App\Models\UserJabatanUnit::firstOrCreate([
+                        'user_id'    => $userId,
+                        'jabatan_id' => $jabatanId,
+                        'unit_id'    => $unit->id,
+                    ]);
+
+                    DB::connection('pgsql')
+                        ->table('tb_users')
+                        ->where('user_id', $userId)
+                        ->update(['department_code' => $unit->code]);
+                }
+            }
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['status' => 500, 'message' => 'Registrasi gagal: ' . $e->getMessage()], 500);
         }
 
-    } catch (\Exception $e) {
-        DB::rollBack();
-        return response()->json(['status' => 500, 'message' => 'Registrasi gagal: ' . $e->getMessage()], 500);
+        $message = $isDosenExt
+            ? 'Registrasi berhasil. Akun Anda menunggu verifikasi oleh admin.'
+            : 'Registrasi berhasil.';
+
+        return response()->json(['status' => 201, 'message' => $message], 201);
     }
-
-    $message = $isDosenExt
-        ? 'Registrasi berhasil. Akun Anda menunggu verifikasi oleh admin.'
-        : 'Registrasi berhasil.';
-
-    return response()->json(['status' => 201, 'message' => $message], 201);
-}
 
     public function auth(Request $request)
     {
@@ -330,6 +323,11 @@ class AuthController extends Controller
                 'data'    => []
             ], 500);
         }
+
+        DB::connection('pgsql')
+            ->table('tb_users')
+            ->where('user_id', $user->user_id)
+            ->update(['last_login_at' => now()]);
 
         $this->loginLogService->logSuccess($user->user_id, $request);
 
@@ -733,143 +731,142 @@ class AuthController extends Controller
     }
 
     public function sendResetLinkEmail(Request $request)
-{
-    $validator = Validator::make($request->all(), [
-        'email' => 'required|email',
-    ]);
-
-    if ($validator->fails()) {
-        return response()->json([
-            'status' => 400,
-            'success' => false,
-            'message' => $validator->errors()->first(),
-            'data' => []
-        ], 400);
-    }
-
-    $email = $request->email;
-
-    // Cek user ada di pgsql
-    $uclUser = DB::connection('pgsql')
-        ->table('tb_users')
-        ->where('email', $email)
-        ->whereNull('deleted_at')
-        ->first();
-
-    if (!$uclUser) {
-        return response()->json([
-            'status' => 400,
-            'success' => false,
-            'message' => 'Email tidak ditemukan.',
-            'data' => []
-        ], 400);
-    }
-
-    try {
-        $token = Str::random(64);
-
-        DB::table('password_resets')->where('email', $email)->delete();
-        DB::table('password_resets')->insert([
-            'email'      => $email,
-            'token'      => Hash::make($token),
-            'created_at' => now(),
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|email',
         ]);
 
-        $resetUrl = rtrim(config('app.frontend_url'), '/') . "/reset-password?token={$token}&email=" . urlencode($email);
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 400,
+                'success' => false,
+                'message' => $validator->errors()->first(),
+                'data' => []
+            ], 400);
+        }
 
-        \Illuminate\Support\Facades\Mail::html(
-    view('emails.reset-password', [
-        'resetUrl' => $resetUrl,
-        'email'    => $email,
-    ])->render(),
-    function ($message) use ($email) {
-        $message->to($email)->subject('Reset Password — E-Portal UIKA');
+        $email = $request->email;
+
+        // Cek user ada di pgsql
+        $uclUser = DB::connection('pgsql')
+            ->table('tb_users')
+            ->where('email', $email)
+            ->whereNull('deleted_at')
+            ->first();
+
+        if (!$uclUser) {
+            return response()->json([
+                'status' => 400,
+                'success' => false,
+                'message' => 'Email tidak ditemukan.',
+                'data' => []
+            ], 400);
+        }
+
+        try {
+            $token = Str::random(64);
+
+            DB::table('password_resets')->where('email', $email)->delete();
+            DB::table('password_resets')->insert([
+                'email'      => $email,
+                'token'      => Hash::make($token),
+                'created_at' => now(),
+            ]);
+
+            $resetUrl = rtrim(config('app.frontend_url'), '/') . "/reset-password?token={$token}&email=" . urlencode($email);
+
+            \Illuminate\Support\Facades\Mail::html(
+                view('emails.reset-password', [
+                    'resetUrl' => $resetUrl,
+                    'email'    => $email,
+                ])->render(),
+                function ($message) use ($email) {
+                    $message->to($email)->subject('Reset Password — E-Portal UIKA');
+                }
+            );
+
+            return response()->json([
+                'status' => 200,
+                'success' => true,
+                'message' => 'Password reset link sent successfully. Please check your email.',
+                'data' => []
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 500,
+                'success' => false,
+                'message' => 'An error occurred while sending the password reset link: ' . $e->getMessage(),
+                'data' => []
+            ], 500);
+        }
     }
-);
-
-        return response()->json([
-            'status' => 200,
-            'success' => true,
-            'message' => 'Password reset link sent successfully. Please check your email.',
-            'data' => []
-        ], 200);
-
-    } catch (\Exception $e) {
-        return response()->json([
-            'status' => 500,
-            'success' => false,
-            'message' => 'An error occurred while sending the password reset link: ' . $e->getMessage(),
-            'data' => []
-        ], 500);
-    }
-}
 
     public function resetPassword(Request $request)
-{
-    $validator = Validator::make($request->all(), [
-        'token'    => 'required',
-        'email'    => 'required|email',
-        'password' => 'required|string|min:8|confirmed',
-    ]);
+    {
+        $validator = Validator::make($request->all(), [
+            'token'    => 'required',
+            'email'    => 'required|email',
+            'password' => 'required|string|min:8|confirmed',
+        ]);
 
-    if ($validator->fails()) {
-        return response()->json([
-            'status'  => 400,
-            'success' => false,
-            'message' => $validator->errors()->first(),
-            'data'    => []
-        ], 400);
-    }
+        if ($validator->fails()) {
+            return response()->json([
+                'status'  => 400,
+                'success' => false,
+                'message' => $validator->errors()->first(),
+                'data'    => []
+            ], 400);
+        }
 
-    $email = $request->email;
-    $token = $request->token;
+        $email = $request->email;
+        $token = $request->token;
 
-    $resetRecord = DB::table('password_resets')->where('email', $email)->first();
+        $resetRecord = DB::table('password_resets')->where('email', $email)->first();
 
-    if (!$resetRecord) {
-        return response()->json([
-            'status'  => 400,
-            'success' => false,
-            'message' => 'Token reset tidak valid atau sudah kedaluwarsa.',
-            'data'    => []
-        ], 400);
-    }
+        if (!$resetRecord) {
+            return response()->json([
+                'status'  => 400,
+                'success' => false,
+                'message' => 'Token reset tidak valid atau sudah kedaluwarsa.',
+                'data'    => []
+            ], 400);
+        }
 
-    if (!Hash::check($token, $resetRecord->token)) {
-        return response()->json([
-            'status'  => 400,
-            'success' => false,
-            'message' => 'Token reset tidak valid.',
-            'data'    => []
-        ], 400);
-    }
+        if (!Hash::check($token, $resetRecord->token)) {
+            return response()->json([
+                'status'  => 400,
+                'success' => false,
+                'message' => 'Token reset tidak valid.',
+                'data'    => []
+            ], 400);
+        }
 
-    if (now()->diffInMinutes($resetRecord->created_at) > 60) {
+        if (now()->diffInMinutes($resetRecord->created_at) > 60) {
+            DB::table('password_resets')->where('email', $email)->delete();
+            return response()->json([
+                'status'  => 400,
+                'success' => false,
+                'message' => 'Token reset sudah kedaluwarsa. Silakan minta link baru.',
+                'data'    => []
+            ], 400);
+        }
+
+        // Update password di pgsql
+        DB::connection('pgsql')
+            ->table('tb_users')
+            ->where('email', $email)
+            ->update(['password' => Hash::make($request->password)]);
+
+        // Hapus token setelah dipakai
         DB::table('password_resets')->where('email', $email)->delete();
+
         return response()->json([
-            'status'  => 400,
-            'success' => false,
-            'message' => 'Token reset sudah kedaluwarsa. Silakan minta link baru.',
+            'status'  => 200,
+            'success' => true,
+            'message' => 'Password has been reset successfully.',
             'data'    => []
-        ], 400);
+        ], 200);
     }
-
-    // Update password di pgsql
-    DB::connection('pgsql')
-        ->table('tb_users')
-        ->where('email', $email)
-        ->update(['password' => Hash::make($request->password)]);
-
-    // Hapus token setelah dipakai
-    DB::table('password_resets')->where('email', $email)->delete();
-
-    return response()->json([
-        'status'  => 200,
-        'success' => true,
-        'message' => 'Password has been reset successfully.',
-        'data'    => []
-    ], 200);
-}
 
     private function getPermissionsForContext($user, $appModuleId, $roleId): array
     {
