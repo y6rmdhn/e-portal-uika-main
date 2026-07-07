@@ -29,26 +29,33 @@ class UsersImport implements ToCollection, WithHeadingRow, SkipsOnError
         // Pegawai tidak ada di sini — harus dari kolom Jabatan di CSV
     ];
 
+    private array $roleMap = [
+        'mahasiswa' => 'Mahasiswa',
+        'dosen'     => 'Dosen',
+        'admin'     => 'Admin',
+        'pegawai'   => 'Pegawai',
+        'dosen_ext' => 'Dosen_Ext',
+    ];
+
     private function findJabatan(string $namaJabatan): ?Jabatan
     {
-        // 1. Exact match (case-insensitive)
-        $jabatan = Jabatan::whereRaw(
-            "LOWER(nama_jabatan) = ?",
-            [strtolower(trim($namaJabatan))]
-        )->first();
+        $input = strtolower(trim($namaJabatan));
 
+        // 1. Exact match
+        $jabatan = Jabatan::whereRaw("LOWER(nama_jabatan) = ?", [$input])->first();
         if ($jabatan) return $jabatan;
 
         // 2. LIKE match
-        $jabatan = Jabatan::whereRaw(
-            "LOWER(nama_jabatan) LIKE ?",
-            ['%' . strtolower(trim($namaJabatan)) . '%']
-        )->first();
-
+        $jabatan = Jabatan::whereRaw("LOWER(nama_jabatan) LIKE ?", ['%' . $input . '%'])->first();
         if ($jabatan) return $jabatan;
 
-        // 3. Keyword match — tiap kata dicari
-        $keywords = explode(' ', strtolower(trim($namaJabatan)));
+        // 3. Normalize double huruf (staff -> staf)
+        $normalized = preg_replace('/(.)\1+/', '$1', $input);
+        $jabatan = Jabatan::whereRaw("LOWER(nama_jabatan) LIKE ?", ['%' . $normalized . '%'])->first();
+        if ($jabatan) return $jabatan;
+
+        // 4. Keyword match tiap kata
+        $keywords = explode(' ', $normalized);
         foreach ($keywords as $keyword) {
             if (strlen($keyword) > 2) {
                 $jabatan = Jabatan::whereRaw(
@@ -115,20 +122,38 @@ class UsersImport implements ToCollection, WithHeadingRow, SkipsOnError
     {
         foreach ($rows as $row) {
             try {
-                // Validasi email
-                if (empty($row['email']) || !filter_var($row['email'], FILTER_VALIDATE_EMAIL)) {
-                    $this->failed[] = ['email' => $row['email'] ?? '?', 'reason' => 'Email tidak valid'];
+                // Skip baris kosong - kalau email kosong langsung skip
+                if (empty(trim($row['email'] ?? ''))) {
                     continue;
                 }
 
-                $role     = in_array($row['role'], ['Mahasiswa', 'Dosen', 'Admin', 'Pegawai', 'Dosen_Ext'])
-                    ? $row['role'] : 'Mahasiswa';
+                // Validasi email
+                if (!filter_var($row['email'], FILTER_VALIDATE_EMAIL)) {
+                    $this->failed[] = [
+                        'email'  => $row['email'],
+                        'reason' => 'Format email tidak valid.',
+                    ];
+                    continue;
+                }
+
+                // -- Validasi & normalisasi role (case-insensitive, trim) --
+                $roleInput = strtolower(trim($row['role'] ?? ''));
+
+                if (!isset($this->roleMap[$roleInput])) {
+                    $this->failed[] = [
+                        'email'  => $row['email'],
+                        'reason' => "Role '{$row['role']}' tidak dikenali. Gunakan: Mahasiswa, Dosen, Admin, Pegawai, atau Dosen_Ext.",
+                    ];
+                    continue;
+                }
+
+                $role     = $this->roleMap[$roleInput];
                 $nidn     = (!empty($row['nidn']) && $row['nidn'] !== '-') ? trim($row['nidn']) : null;
                 $npm      = (!empty($row['npm'])  && $row['npm']  !== '-') ? trim($row['npm'])  : null;
-                $nama     = $row['nama']     ?? null;
-                $password = !empty($row['password']) ? $row['password'] : 'password123';
-                $jabatan  = !empty($row['jabatan']) ? trim($row['jabatan']) : null;
-                $unit     = !empty($row['unit'])    ? trim($row['unit'])    : null;
+                $nama     = !empty($row['nama'])     ? trim($row['nama'])     : null;
+                $password = !empty($row['password']) ? trim($row['password']) : 'password123';
+                $jabatan  = !empty($row['jabatan'])  ? trim($row['jabatan'])  : null;
+                $unit     = !empty($row['unit'])     ? trim($row['unit'])     : null;
 
                 // Cek email sudah ada
                 $existing = DB::connection('pgsql')
@@ -138,8 +163,12 @@ class UsersImport implements ToCollection, WithHeadingRow, SkipsOnError
 
                 if ($existing) {
                     if ($existing->deleted_at !== null) {
-                        // ── Restore soft-deleted user ──
+                        // -- Restore soft-deleted user --
                         [$jabatanId, $jabatanModel] = $this->resolveJabatan($role, $jabatan);
+
+                        if (!$jabatanModel && $role === 'Pegawai' && $jabatan) {
+                            \Log::warning("Import (restore): jabatan '{$jabatan}' tidak ditemukan untuk {$row['email']}");
+                        }
 
                         DB::connection('pgsql')->table('tb_users')
                             ->where('email', $row['email'])
@@ -147,15 +176,14 @@ class UsersImport implements ToCollection, WithHeadingRow, SkipsOnError
                                 'role'       => $role,
                                 'nidn'       => $nidn,
                                 'npm'        => $npm,
-                                'role_id'    => $jabatanId, // <-- fix: role_id ikut diupdate
+                                'role_id'    => $jabatanId,
                                 'deleted_at' => null,
                                 'updated_at' => now(),
                             ]);
 
-                        // <-- fix: assign ulang Spatie role juga
                         $this->applyJabatan($existing->user_id, $row['email'], $jabatanId, $jabatanModel);
 
-                        // ── Auto-assign unit (restore) ──
+                        // -- Auto-assign unit (restore) --
                         if ($unit) {
                             $unitModel = Unit::where('code', $unit)->first();
 
@@ -247,7 +275,7 @@ class UsersImport implements ToCollection, WithHeadingRow, SkipsOnError
                     'email'        => $row['email'],
                 ]);
 
-                // ── Auto-assign jabatan ──
+                // -- Auto-assign jabatan --
                 [$jabatanId, $jabatanModel] = $this->resolveJabatan($role, $jabatan);
 
                 if (!$jabatanModel && $role === 'Pegawai' && $jabatan) {
@@ -256,7 +284,7 @@ class UsersImport implements ToCollection, WithHeadingRow, SkipsOnError
 
                 $this->applyJabatan($userId, $row['email'], $jabatanId, $jabatanModel);
 
-                // ── Auto-assign unit ──
+                // -- Auto-assign unit --
                 if ($unit) {
                     $unitModel = Unit::where('code', $unit)->first();
 
