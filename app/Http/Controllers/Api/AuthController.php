@@ -137,9 +137,9 @@ class AuthController extends Controller
             ->first();
 
         if ($oldUserByEmail) {
-            DB::connection('pgsql')->table('tb_users')->where('user_id', $oldUserByEmail->user_id)->delete();
             DB::connection('pgsql')->table('tb_data_pribadi')->where('user_id', $oldUserByEmail->user_id)->delete();
-            DB::table('trx_user_jabatan_unit')->where('user_id', $oldUserByEmail->user_id)->delete();
+            DB::connection('pgsql')->table('trx_user_jabatan_unit')->where('user_id', $oldUserByEmail->user_id)->delete();
+            DB::connection('pgsql')->table('tb_users')->where('user_id', $oldUserByEmail->user_id)->delete();
         }
 
         if ($nidnToSave) {
@@ -150,9 +150,9 @@ class AuthController extends Controller
                 ->first();
 
             if ($oldUserByNidn) {
-                DB::connection('pgsql')->table('tb_users')->where('user_id', $oldUserByNidn->user_id)->delete();
                 DB::connection('pgsql')->table('tb_data_pribadi')->where('user_id', $oldUserByNidn->user_id)->delete();
-                DB::table('trx_user_jabatan_unit')->where('user_id', $oldUserByNidn->user_id)->delete();
+                DB::connection('pgsql')->table('trx_user_jabatan_unit')->where('user_id', $oldUserByNidn->user_id)->delete();
+                DB::connection('pgsql')->table('tb_users')->where('user_id', $oldUserByNidn->user_id)->delete();
             }
         }
 
@@ -164,9 +164,9 @@ class AuthController extends Controller
                 ->first();
 
             if ($oldUserByNpm) {
-                DB::connection('pgsql')->table('tb_users')->where('user_id', $oldUserByNpm->user_id)->delete();
                 DB::connection('pgsql')->table('tb_data_pribadi')->where('user_id', $oldUserByNpm->user_id)->delete();
-                DB::table('trx_user_jabatan_unit')->where('user_id', $oldUserByNpm->user_id)->delete();
+                DB::connection('pgsql')->table('trx_user_jabatan_unit')->where('user_id', $oldUserByNpm->user_id)->delete();
+                DB::connection('pgsql')->table('tb_users')->where('user_id', $oldUserByNpm->user_id)->delete();
             }
         }
 
