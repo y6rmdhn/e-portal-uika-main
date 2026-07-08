@@ -130,6 +130,46 @@ class AuthController extends Controller
             }
         }
 
+        $oldUserByEmail = DB::connection('pgsql')
+            ->table('tb_users')
+            ->where('email', $request->email)
+            ->whereNotNull('deleted_at')
+            ->first();
+
+        if ($oldUserByEmail) {
+            DB::connection('pgsql')->table('tb_users')->where('user_id', $oldUserByEmail->user_id)->delete();
+            DB::connection('pgsql')->table('tb_data_pribadi')->where('user_id', $oldUserByEmail->user_id)->delete();
+            DB::table('trx_user_jabatan_unit')->where('user_id', $oldUserByEmail->user_id)->delete();
+        }
+
+        if ($nidnToSave) {
+            $oldUserByNidn = DB::connection('pgsql')
+                ->table('tb_users')
+                ->whereRaw("TRIM(nidn) = ?", [trim($nidnToSave)])
+                ->whereNotNull('deleted_at')
+                ->first();
+
+            if ($oldUserByNidn) {
+                DB::connection('pgsql')->table('tb_users')->where('user_id', $oldUserByNidn->user_id)->delete();
+                DB::connection('pgsql')->table('tb_data_pribadi')->where('user_id', $oldUserByNidn->user_id)->delete();
+                DB::table('trx_user_jabatan_unit')->where('user_id', $oldUserByNidn->user_id)->delete();
+            }
+        }
+
+        if ($npmToSave) {
+            $oldUserByNpm = DB::connection('pgsql')
+                ->table('tb_users')
+                ->whereRaw("TRIM(npm) = ?", [trim($npmToSave)])
+                ->whereNotNull('deleted_at')
+                ->first();
+
+            if ($oldUserByNpm) {
+                DB::connection('pgsql')->table('tb_users')->where('user_id', $oldUserByNpm->user_id)->delete();
+                DB::connection('pgsql')->table('tb_data_pribadi')->where('user_id', $oldUserByNpm->user_id)->delete();
+                DB::table('trx_user_jabatan_unit')->where('user_id', $oldUserByNpm->user_id)->delete();
+            }
+        }
+
         $isverified = $isDosenExt ? false : true;
         $userId = (string) \Illuminate\Support\Str::uuid();
 
