@@ -35,7 +35,8 @@ class SsoUserResource extends JsonResource
                     $unitCode = $payload->get('unit_code');
                 }
             }
-        } catch (\Exception $e) {}
+        } catch (\Exception $e) {
+        }
 
         return [
             'sso_id'             => $this->user_id,
@@ -49,7 +50,7 @@ class SsoUserResource extends JsonResource
             'image'              => null,
             'is_active'          => (bool) ($this->isverified ?? true),
             'email_verified'     => (bool) ($this->isverified ?? true),
-            'last_login_at'      => $this->last_login_at ? $this->last_login_at->toIso8601String() : null,
+            'last_login_at' => $this->last_login_at ? \Carbon\Carbon::parse($this->last_login_at)->toIso8601String() : null,
             'institutional_role' => $role ?? null,
             'unit_id'            => $unitId,
             'unit_name'          => $unitName,
