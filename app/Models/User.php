@@ -92,4 +92,9 @@ class User extends Authenticatable implements JWTSubject
             })->toArray(),
         ];
     }
+
+    public function dataPribadi()
+    {
+        return $this->hasOne(\App\Models\DataPribadi::class, 'user_id', 'user_id');
+    }
 }

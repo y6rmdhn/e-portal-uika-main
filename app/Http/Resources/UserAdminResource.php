@@ -13,12 +13,18 @@ class UserAdminResource extends JsonResource
             ? $this->getRelation('unit')
             : $this->unit()->first();
 
+        // BARU: ambil data pribadi (nik dll) — dari eager-loaded relation atau fallback query
+        $dataPribadi = $this->relationLoaded('dataPribadi')
+            ? $this->getRelation('dataPribadi')
+            : $this->dataPribadi()->first();
+
         return [
             'id'            => $this->user_id,
             'email'         => $this->email,
             'role'          => $this->role,
             'nidn'          => $this->nidn,
             'npm'           => $this->npm,
+            'nik'           => $dataPribadi?->nik, // ← BARU: khusus Dosen_Ext, diambil dari tb_data_pribadi
             'isverified'    => (bool) ($this->isverified ?? true),
             'unit_id'       => $unit?->id,
             'unit'          => $unit ? [
@@ -42,4 +48,4 @@ class UserAdminResource extends JsonResource
             'updated_at'    => $this->updated_at ? $this->updated_at->format('d-m-Y H:i') : null,
         ];
     }
-}
+}

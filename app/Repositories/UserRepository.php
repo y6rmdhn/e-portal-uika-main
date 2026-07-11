@@ -13,7 +13,7 @@ class UserRepository implements UserRepositoryInterface
 {
     public function getAllUsers(array $filters = [])
     {
-        $query = User::with(['userJabatanUnits.unit', 'userJabatanUnits.jabatan', 'roles', 'unit'])
+        $query = User::with(['userJabatanUnits.unit', 'userJabatanUnits.jabatan', 'roles', 'unit', 'dataPribadi'])
             ->whereNull('deleted_at');
 
         if (!empty($filters['role'])) {
@@ -35,7 +35,7 @@ class UserRepository implements UserRepositoryInterface
 
     public function findById(string $id)
     {
-        return User::with(['userJabatanUnits.unit', 'userJabatanUnits.jabatan', 'roles', 'unit'])
+        return User::with(['userJabatanUnits.unit', 'userJabatanUnits.jabatan', 'roles', 'unit', 'dataPribadi'])
             ->where('user_id', $id)
             ->whereNull('deleted_at')
             ->firstOrFail();
@@ -43,7 +43,7 @@ class UserRepository implements UserRepositoryInterface
 
     public function findByEmail(string $email)
     {
-        return User::with(['userJabatanUnits.unit', 'userJabatanUnits.jabatan', 'roles', 'unit'])
+        return User::with(['userJabatanUnits.unit', 'userJabatanUnits.jabatan', 'roles', 'unit', 'dataPribadi'])
             ->where('email', $email)
             ->whereNull('deleted_at')
             ->first();

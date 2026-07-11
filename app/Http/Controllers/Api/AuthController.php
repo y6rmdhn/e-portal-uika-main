@@ -69,6 +69,7 @@ class AuthController extends Controller
             'nama_lengkap'  => 'required_if:role,Dosen_Ext|nullable|string|max:255',
             'nik'           => 'required_if:role,Dosen_Ext|nullable|string|max:60',
             'instansi'      => 'required_if:role,Dosen_Ext|nullable|string|max:255',
+            'asal_univ'     => 'nullable|string|max:255',
             'jenkel'        => 'nullable|in:L,P',
             'tanggal_lahir' => 'nullable|date',
             'tempat_lahir'  => 'nullable|string|max:255',
@@ -207,6 +208,7 @@ class AuthController extends Controller
                     'user_id'      => $userId,
                     'nama_lengkap' => $request->nama,
                     'email'        => $request->email,
+                    'instansi_ext' => $request->asal_univ,
                 ]);
             }
 
