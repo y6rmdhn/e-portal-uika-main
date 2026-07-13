@@ -10,6 +10,8 @@ class Unit extends Model
 {
     use HasFactory, SoftDeletes;
 
+    const UPDATED_AT = null;
+
     protected $table = 'm_unit';
 
     protected $fillable = [

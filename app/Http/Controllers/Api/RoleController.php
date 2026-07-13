@@ -7,9 +7,17 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use App\Models\Role;
 use App\Http\Helper\ResponseBuilder;
+use App\Services\ActivityLogService;
+use Tymon\JWTAuth\Facades\JWTAuth;
 
 class RoleController extends Controller
 {
+    protected ActivityLogService $activityLog;
+
+    public function __construct(ActivityLogService $activityLog)
+    {
+        $this->activityLog = $activityLog;
+    }
     /**
      * GET /api/admins/roles
      * List all roles with their permissions.
@@ -64,6 +72,20 @@ class RoleController extends Controller
             'guard_name' => $request->input('guard_name', 'web') ? $request->input('guard_name', 'web') : "web",
         ]);
 
+        // Log Aktivitas
+        try {
+            $actor = JWTAuth::user();
+            $this->activityLog->log(
+                'role_create',
+                "Membuat role baru: {$role->name}",
+                $actor?->user_id,
+                $actor?->user_id,
+                ['role_id' => $role->id, 'name' => $role->name]
+            );
+        } catch (\Exception $e) {
+            // silent fail
+        }
+
         return ResponseBuilder::success(201, 'Role created successfully.', $role);
     }
 
@@ -96,7 +118,22 @@ class RoleController extends Controller
             ], 422);
         }
 
+        $oldName = $role->name;
         $role->update($request->only('name', 'guard_name'));
+
+        // Log Aktivitas
+        try {
+            $actor = JWTAuth::user();
+            $this->activityLog->log(
+                'role_update',
+                "Memperbarui role: {$oldName} → {$role->name}",
+                $actor?->user_id,
+                $actor?->user_id,
+                ['role_id' => $role->id, 'before' => $oldName, 'after' => $role->name]
+            );
+        } catch (\Exception $e) {
+            // silent fail
+        }
 
         return ResponseBuilder::success(200, 'Role updated successfully.', $role);
     }
@@ -117,7 +154,22 @@ class RoleController extends Controller
             ], 404);
         }
 
+        $roleName = $role->name;
         $role->delete();
+
+        // Log Aktivitas
+        try {
+            $actor = JWTAuth::user();
+            $this->activityLog->log(
+                'role_delete',
+                "Menghapus role: {$roleName}",
+                $actor?->user_id,
+                $actor?->user_id,
+                ['role_id' => $id, 'name' => $roleName]
+            );
+        } catch (\Exception $e) {
+            // silent fail
+        }
 
         return response()->json([
             'status'  => 200,
@@ -157,6 +209,22 @@ class RoleController extends Controller
             $user->assignRole($role->name);
         }
 
+        // Log Aktivitas
+        try {
+            $userEmails = $users->pluck('email')->toArray();
+            $emailList = implode(', ', $userEmails);
+            $actor = JWTAuth::user();
+            $this->activityLog->log(
+                'role_assign',
+                "Menugaskan role {$role->name} ke user: ({$emailList})",
+                $actor?->user_id,
+                $actor?->user_id,
+                ['role_id' => $role->id, 'role_name' => $role->name, 'user_emails' => $userEmails]
+            );
+        } catch (\Exception $e) {
+            // silent fail
+        }
+
         return ResponseBuilder::success(200, 'Role assigned successfully to ' . $users->count() . ' user(s).');
     }
 
@@ -189,6 +257,22 @@ class RoleController extends Controller
 
         foreach ($users as $user) {
             $user->removeRole($role->name);
+        }
+
+        // Log Aktivitas
+        try {
+            $userEmails = $users->pluck('email')->toArray();
+            $emailList = implode(', ', $userEmails);
+            $actor = JWTAuth::user();
+            $this->activityLog->log(
+                'role_unassign',
+                "Mencabut role {$role->name} dari user: ({$emailList})",
+                $actor?->user_id,
+                $actor?->user_id,
+                ['role_id' => $role->id, 'role_name' => $role->name, 'user_emails' => $userEmails]
+            );
+        } catch (\Exception $e) {
+            // silent fail
         }
 
         return ResponseBuilder::success(200, 'Role unassigned successfully from ' . $users->count() . ' user(s).');

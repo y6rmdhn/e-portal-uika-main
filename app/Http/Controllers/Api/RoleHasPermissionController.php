@@ -10,9 +10,17 @@ use App\Models\Role;
 use App\Models\Permission;
 use App\Models\RoleHasPermission;
 use App\Http\Helper\ResponseBuilder;
+use App\Services\ActivityLogService;
+use Tymon\JWTAuth\Facades\JWTAuth;
 
 class RoleHasPermissionController extends Controller
 {
+    protected ActivityLogService $activityLog;
+
+    public function __construct(ActivityLogService $activityLog)
+    {
+        $this->activityLog = $activityLog;
+    }
     /**
      * GET /api/admins/role-permissions
      * List all role-permission assignments, optionally filtered by role_id.
@@ -79,6 +87,25 @@ class RoleHasPermissionController extends Controller
 
         RoleHasPermission::insert($toInsert);
 
+        // Log Aktivitas
+        try {
+            $role = Role::find($roleId);
+            $roleName = $role ? $role->name : "ID {$roleId}";
+            $permissionNames = Permission::whereIn('id', $permissionIds)->pluck('name')->toArray();
+            $permissionList = implode(', ', $permissionNames);
+
+            $actor = JWTAuth::user();
+            $this->activityLog->log(
+                ActivityLogService::TYPE_PERMISSION_ASSIGN,
+                "Menugaskan hak akses ({$permissionList}) ke role: {$roleName}",
+                $actor?->user_id,
+                $actor?->user_id,
+                ['role_id' => $roleId, 'role_name' => $roleName, 'permission_ids' => $permissionIds]
+            );
+        } catch (\Exception $e) {
+            // silent fail
+        }
+
         $assigned = RoleHasPermission::with(['role', 'permission.appModule'])
             ->where('role_id', $roleId)
             ->whereIn('permission_id', $permissionIds)
@@ -120,6 +147,25 @@ class RoleHasPermissionController extends Controller
                 'message' => 'No matching role-permission assignments found.',
                 'data'    => [],
             ], 200);
+        }
+
+        // Log Aktivitas
+        try {
+            $role = Role::find($roleId);
+            $roleName = $role ? $role->name : "ID {$roleId}";
+            $permissionNames = Permission::whereIn('id', $permissionIds)->pluck('name')->toArray();
+            $permissionList = implode(', ', $permissionNames);
+
+            $actor = JWTAuth::user();
+            $this->activityLog->log(
+                ActivityLogService::TYPE_PERMISSION_UNASSIGN,
+                "Mencabut hak akses ({$permissionList}) dari role: {$roleName}",
+                $actor?->user_id,
+                $actor?->user_id,
+                ['role_id' => $roleId, 'role_name' => $roleName, 'permission_ids' => $permissionIds]
+            );
+        } catch (\Exception $e) {
+            // silent fail
         }
 
         return response()->json([
@@ -165,6 +211,25 @@ class RoleHasPermissionController extends Controller
                 RoleHasPermission::insert($rows);
             }
         });
+
+        // Log Aktivitas
+        try {
+            $role = Role::find($roleId);
+            $roleName = $role ? $role->name : "ID {$roleId}";
+            $permissionNames = Permission::whereIn('id', $permissionIds)->pluck('name')->toArray();
+            $permissionList = implode(', ', $permissionNames);
+
+            $actor = JWTAuth::user();
+            $this->activityLog->log(
+                ActivityLogService::TYPE_PERMISSION_SYNC,
+                "Sinkronisasi hak akses ({$permissionList}) untuk role: {$roleName}",
+                $actor?->user_id,
+                $actor?->user_id,
+                ['role_id' => $roleId, 'role_name' => $roleName, 'permission_ids' => $permissionIds]
+            );
+        } catch (\Exception $e) {
+            // silent fail
+        }
 
         $result = RoleHasPermission::with(['role', 'permission.appModule'])
             ->where('role_id', $roleId)
