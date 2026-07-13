@@ -30,7 +30,15 @@ return [
         'http://localhost:8082',
         'http://127.0.0.1:8082',
         'http://localhost:8083',
-        'http://127.0.0.1:8083'
+        'http://127.0.0.1:8083',
+        'http://103.158.196.79',
+        'https://nl-siak.uika-bogor.ac.id',
+        'https://nl-simpeg.uika-bogor.ac.id',
+        'https://ucl.uika-bogor.ac.id',
+        'https://api-simpeg.uika-bogor.ac.id',
+        'https://api-tias.ti.ft.uika-bogor.ac.id',
+        'https://u-talent.uika-bogor.ac.id',
+        'https://eportal.uika-bogor.ac.id',
     ],
 
     'allowed_origins_patterns' => [],

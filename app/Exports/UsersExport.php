@@ -16,27 +16,58 @@ class UsersExport implements FromCollection, WithHeadings, WithMapping, WithStyl
 
     public function collection()
     {
-        $query = DB::connection('ucl')->table('tb_users')->whereNull('deleted_at');
+        $query = DB::connection('pgsql')
+            ->table('tb_users as u')
+            ->leftJoin('tb_data_pribadi as dp', 'dp.user_id', '=', 'u.user_id')
+            ->leftJoin('trx_user_jabatan_unit as tuju', 'tuju.user_id', '=', 'u.user_id')
+            ->leftJoin('m_unit as mu', 'mu.id', '=', 'tuju.unit_id')
+            ->leftJoin('m_jabatan as mj', 'mj.id', '=', 'tuju.jabatan_id')
+            ->whereNull('u.deleted_at')
+            ->select(
+                'u.user_id',
+                'u.email',
+                'u.role',
+                'u.npm',
+                'u.nidn',
+                'u.isverified',
+                'u.created_at',
+                'dp.nama_lengkap',
+                'mj.nama_jabatan',
+                'mu.nama_unit',
+                'mu.code as unit_code',
+            );
 
         if (!empty($this->filters['role'])) {
-            $query->where('role', $this->filters['role']);
+            $query->where('u.role', $this->filters['role']);
         }
 
         if (!empty($this->filters['search'])) {
             $search = $this->filters['search'];
             $query->where(function ($q) use ($search) {
-                $q->where('email', 'like', "%{$search}%")
-                  ->orWhere('nidn', 'like', "%{$search}%")
-                  ->orWhere('npm', 'like', "%{$search}%");
+                $q->where('u.email', 'ilike', "%{$search}%")
+                  ->orWhere('u.nidn', 'ilike', "%{$search}%")
+                  ->orWhere('u.npm', 'ilike', "%{$search}%")
+                  ->orWhere('dp.nama_lengkap', 'ilike', "%{$search}%");
             });
         }
 
-        return $query->orderByDesc('created_at')->get();
+        return $query->orderByDesc('u.created_at')->get();
     }
 
     public function headings(): array
     {
-        return ['No', 'Email', 'Role', 'NPM', 'NIDN', 'Tanggal Daftar'];
+        return [
+            'No',
+            'Nama Lengkap',
+            'Email',
+            'Role',
+            'NPM',
+            'NIDN',
+            'Jabatan',
+            'Unit',
+            'Status',
+            'Tanggal Daftar',
+        ];
     }
 
     public function map($user): array
@@ -46,11 +77,15 @@ class UsersExport implements FromCollection, WithHeadings, WithMapping, WithStyl
 
         return [
             $no,
+            $user->nama_lengkap ?? '-',
             $user->email,
             $user->role,
-            $user->npm  ?? '-',
-            $user->nidn ?? '-',
-            $user->created_at ?? '-',
+            trim($user->npm  ?? '') ?: '-',
+            trim($user->nidn ?? '') ?: '-',
+            $user->nama_jabatan ?? '-',
+            $user->nama_unit    ?? '-',
+            $user->isverified ? 'Aktif' : 'Belum Verifikasi',
+            $user->created_at ? date('d-m-Y H:i', strtotime($user->created_at)) : '-',
         ];
     }
 

@@ -36,22 +36,54 @@ class AuthController extends Controller
         protected ActivityLogService $activityLog,
     ) {}
 
+    public function checkId(Request $request)
+    {
+        $field = $request->query('field'); // 'npm' atau 'nidn'
+        $value = $request->query('value');
+
+        if (!in_array($field, ['npm', 'nidn'])) {
+            return response()->json(['exists' => false], 200);
+        }
+
+        $exists = DB::connection('pgsql')
+            ->table('tb_users')
+            ->whereRaw("TRIM({$field}) = ?", [trim($value)])
+            ->whereNull('deleted_at')
+            ->exists();
+
+        return response()->json(['exists' => $exists], 200);
+    }
+
     public function register(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'email'    => 'required|email',
-            'password' => 'required|string|min:8|confirmed',
-            'role'     => 'required|in:Mahasiswa,Dosen,Admin',
-            'nidn'     => 'nullable|string',
-            'npm'      => 'nullable|string',
+            'email'      => 'required|email',
+            'password'   => 'required|string|min:8|confirmed',
+            'role'       => 'required|in:Mahasiswa,Dosen,Admin,Pegawai,Dosen_Ext',
+            'nidn'       => 'nullable|string',
+            'npm'        => 'nullable|string',
+            'nama'       => 'nullable|string|max:255',
+            'jabatan_id' => 'nullable|integer|exists:m_jabatan,id',
+            'unit_code'  => 'nullable|string|max:50',
+            'unit_nama'  => 'nullable|string|max:100',
+            'nama_lengkap'  => 'required_if:role,Dosen_Ext|nullable|string|max:255',
+            'nik'           => 'required_if:role,Dosen_Ext|nullable|string|max:60',
+            'instansi'      => 'required_if:role,Dosen_Ext|nullable|string|max:255',
+            'asal_univ'     => 'nullable|string|max:255',
+            'jenkel'        => 'nullable|in:L,P',
+            'tanggal_lahir' => 'nullable|date',
+            'tempat_lahir'  => 'nullable|string|max:255',
+            'agama'         => 'nullable|string|max:25',
+            'no_hp'         => 'nullable|string|max:50',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['status' => 422, 'message' => $validator->errors()->first()], 422);
         }
 
-        // Cek email sudah ada di UCL
-        $exists = DB::connection('ucl')
+        $isDosenExt = $request->role === 'Dosen_Ext';
+
+        $exists = DB::connection('pgsql')
             ->table('tb_users')
             ->where('email', $request->email)
             ->whereNull('deleted_at')
@@ -61,20 +93,188 @@ class AuthController extends Controller
             return response()->json(['status' => 422, 'message' => 'Email sudah terdaftar.'], 422);
         }
 
-        // Insert ke tb_users UCL
-        DB::connection('ucl')->table('tb_users')->insert([
-            'user_id'    => \Illuminate\Support\Str::uuid(),
-            'email'      => $request->email,
-            'password'   => Hash::make($request->password),
-            'role'       => $request->role,
-            'nidn'       => $request->nidn,
-            'npm'        => $request->npm,
-            'isverified' => true, // langsung verified
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        if ($isDosenExt && $request->nik) {
+            $nikExists = DB::connection('pgsql')
+                ->table('tb_data_pribadi')
+                ->where('nik', trim($request->nik))
+                ->exists();
 
-        return response()->json(['status' => 201, 'message' => 'Registrasi berhasil.'], 201);
+            if ($nikExists) {
+                return response()->json(['status' => 422, 'message' => 'NIK/NIP sudah terdaftar.'], 422);
+            }
+        }
+
+        $nidnToSave = $isDosenExt ? null : $request->nidn;
+        $npmToSave  = $isDosenExt ? null : $request->npm;
+
+        if ($npmToSave) {
+            $npmExists = DB::connection('pgsql')
+                ->table('tb_users')
+                ->whereRaw("TRIM(npm) = ?", [trim($npmToSave)])
+                ->whereNull('deleted_at')
+                ->exists();
+
+            if ($npmExists) {
+                return response()->json(['status' => 422, 'message' => 'NPM sudah terdaftar. Silakan login.'], 422);
+            }
+        }
+
+        if ($nidnToSave) {
+            $nidnExists = DB::connection('pgsql')
+                ->table('tb_users')
+                ->whereRaw("TRIM(nidn) = ?", [trim($nidnToSave)])
+                ->whereNull('deleted_at')
+                ->exists();
+
+            if ($nidnExists) {
+                return response()->json(['status' => 422, 'message' => 'NIDN sudah terdaftar. Silakan login.'], 422);
+            }
+        }
+
+        $oldUserByEmail = DB::connection('pgsql')
+            ->table('tb_users')
+            ->where('email', $request->email)
+            ->whereNotNull('deleted_at')
+            ->first();
+
+        if ($oldUserByEmail) {
+            DB::connection('pgsql')->table('tb_data_pribadi')->where('user_id', $oldUserByEmail->user_id)->delete();
+            DB::connection('pgsql')->table('trx_user_jabatan_unit')->where('user_id', $oldUserByEmail->user_id)->delete();
+            DB::connection('pgsql')->table('tb_users')->where('user_id', $oldUserByEmail->user_id)->delete();
+        }
+
+        if ($nidnToSave) {
+            $oldUserByNidn = DB::connection('pgsql')
+                ->table('tb_users')
+                ->whereRaw("TRIM(nidn) = ?", [trim($nidnToSave)])
+                ->whereNotNull('deleted_at')
+                ->first();
+
+            if ($oldUserByNidn) {
+                DB::connection('pgsql')->table('tb_data_pribadi')->where('user_id', $oldUserByNidn->user_id)->delete();
+                DB::connection('pgsql')->table('trx_user_jabatan_unit')->where('user_id', $oldUserByNidn->user_id)->delete();
+                DB::connection('pgsql')->table('tb_users')->where('user_id', $oldUserByNidn->user_id)->delete();
+            }
+        }
+
+        if ($npmToSave) {
+            $oldUserByNpm = DB::connection('pgsql')
+                ->table('tb_users')
+                ->whereRaw("TRIM(npm) = ?", [trim($npmToSave)])
+                ->whereNotNull('deleted_at')
+                ->first();
+
+            if ($oldUserByNpm) {
+                DB::connection('pgsql')->table('tb_data_pribadi')->where('user_id', $oldUserByNpm->user_id)->delete();
+                DB::connection('pgsql')->table('trx_user_jabatan_unit')->where('user_id', $oldUserByNpm->user_id)->delete();
+                DB::connection('pgsql')->table('tb_users')->where('user_id', $oldUserByNpm->user_id)->delete();
+            }
+        }
+
+        $isverified = $isDosenExt ? false : true;
+        $userId = (string) \Illuminate\Support\Str::uuid();
+
+        DB::beginTransaction();
+        try {
+            DB::connection('pgsql')->table('tb_users')->insert([
+                'user_id'    => $userId,
+                'email'      => $request->email,
+                'password'   => Hash::make($request->password),
+                'role'       => $request->role,
+                'nidn'       => $nidnToSave ? trim($nidnToSave) : null,
+                'npm'        => $npmToSave ? trim($npmToSave) : null,
+                'isverified' => $isverified,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            if ($isDosenExt) {
+                DB::connection('pgsql')->table('tb_data_pribadi')->insert([
+                    'dp_id'         => (string) \Illuminate\Support\Str::uuid(),
+                    'user_id'       => $userId,
+                    'nama_lengkap'  => $request->nama_lengkap,
+                    'jenkel'        => $request->jenkel,
+                    'tanggal_lahir' => $request->tanggal_lahir,
+                    'tempat_lahir'  => $request->tempat_lahir,
+                    'agama'         => $request->agama,
+                    'email'         => $request->email,
+                    'no_hp'         => $request->no_hp,
+                    'nik'           => $request->nik,
+                    'instansi_ext'  => $request->instansi,
+                ]);
+            } else {
+                DB::connection('pgsql')->table('tb_data_pribadi')->insert([
+                    'dp_id'        => (string) \Illuminate\Support\Str::uuid(),
+                    'user_id'      => $userId,
+                    'nama_lengkap' => $request->nama,
+                    'email'        => $request->email,
+                    'instansi_ext' => $request->asal_univ,
+                ]);
+            }
+
+            DB::commit();
+
+            // ── Auto-assign jabatan ──
+            $jabatanMap = [
+                'Mahasiswa'  => 102,
+                'Dosen'      => 21,
+                'Dosen_Ext'  => 21,
+            ];
+
+            $jabatanId = $request->jabatan_id ?? ($jabatanMap[$request->role] ?? null);
+            $newUser = \App\Models\User::where('user_id', $userId)->first();
+
+            if ($jabatanId && $newUser) {
+                $jabatan = \App\Models\Jabatan::find($jabatanId);
+                if ($jabatan) {
+                    try {
+                        $newUser->assignRole($jabatan->name);
+                    } catch (\Exception $e) {
+                        \Log::warning('Auto-assign role gagal: ' . $e->getMessage());
+                    }
+                }
+
+                // ← tambah ini: update role_id di tb_users pgsql
+                DB::connection('pgsql')
+                    ->table('tb_users')
+                    ->where('user_id', $userId)
+                    ->update(['role_id' => $jabatanId]);
+            }
+
+            // ── Auto-assign unit ──
+            if ($request->unit_code && $request->unit_nama) {
+                $unit = \App\Models\Unit::where('code', $request->unit_code)->first();
+
+                if (!$unit) {
+                    $unit = \App\Models\Unit::create([
+                        'code'      => $request->unit_code,
+                        'nama_unit' => $request->unit_nama,
+                    ]);
+                }
+
+                if ($unit && $jabatanId && $newUser) {
+                    \App\Models\UserJabatanUnit::firstOrCreate([
+                        'user_id'    => $userId,
+                        'jabatan_id' => $jabatanId,
+                        'unit_id'    => $unit->id,
+                    ]);
+
+                    DB::connection('pgsql')
+                        ->table('tb_users')
+                        ->where('user_id', $userId)
+                        ->update(['department_code' => $unit->code]);
+                }
+            }
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['status' => 500, 'message' => 'Registrasi gagal: ' . $e->getMessage()], 500);
+        }
+
+        $message = $isDosenExt
+            ? 'Registrasi berhasil. Akun Anda menunggu verifikasi oleh admin.'
+            : 'Registrasi berhasil.';
+
+        return response()->json(['status' => 201, 'message' => $message], 201);
     }
 
     public function auth(Request $request)
@@ -165,6 +365,11 @@ class AuthController extends Controller
                 'data'    => []
             ], 500);
         }
+
+        DB::connection('pgsql')
+            ->table('tb_users')
+            ->where('user_id', $user->user_id)
+            ->update(['last_login_at' => now()]);
 
         $this->loginLogService->logSuccess($user->user_id, $request);
 
@@ -266,18 +471,25 @@ class AuthController extends Controller
             $unit     = $user->getRelation('unit');
             $jabatans = $user->getRoleNames()->toArray(); // Hanya dari Spatie, tidak fallback ke role lama
 
+            $dataPribadi = DB::connection('pgsql')
+                ->table('tb_data_pribadi')
+                ->where('user_id', $user->user_id)
+                ->first();
+
             $userData = [
-                'id'        => $user->user_id,
-                'email'     => $user->email,
-                'name'      => $user->email,
-                'role'      => !empty($jabatans) ? $jabatans[0] : null, // null jika tidak punya jabatan
-                'role_id'   => $user->roles()->first()?->id,
-                'nidn'      => $user->nidn,
-                'npm'       => $user->npm,
-                'unit_id'   => $unit?->id,
-                'unit_name' => $unit?->nama_unit,
-                'jabatans'  => $jabatans, // Array jabatan aktual dari Spatie
-                'image'     => null,
+                'id'           => $user->user_id,
+                'email'        => $user->email,
+                'name'         => $dataPribadi?->nama_lengkap ?? $user->email,
+                'nama_lengkap' => $dataPribadi?->nama_lengkap ?? null,
+                'no_hp'        => $dataPribadi?->no_hp ?? null,
+                'image'        => $dataPribadi?->image ?? null,
+                'role'         => !empty($jabatans) ? $jabatans[0] : null,
+                'role_id'      => $user->roles()->first()?->id,
+                'nidn'         => $user->nidn,
+                'npm'          => $user->npm,
+                'unit_id'      => $unit?->id,
+                'unit_name'    => $unit?->nama_unit,
+                'jabatans'     => $jabatans,
             ];
 
             // Ambil semua permission user (jika admin/super-admin, ambil semua permission di system)
@@ -339,6 +551,11 @@ class AuthController extends Controller
         }
     }
 
+    public function redirectToGoogle()
+    {
+        return Socialite::driver('google')->stateless()->redirect();
+    }
+
     public function handleGoogleCallback()
     {
         try {
@@ -350,11 +567,11 @@ class AuthController extends Controller
                 ->first();
 
             if (!$user) {
-                return redirect('http://localhost:5173/login?error=AkunTidakTerdaftar');
+                return redirect('http://103.158.196.79/eportal/login?error=AkunTidakTerdaftar');
             }
 
             if (!$user->isverified) {
-                return redirect('http://localhost:5173/login?error=AkunBelumVerifikasi');
+                return redirect('http://103.158.196.79/eportal/login?error=AkunBelumVerifikasi');
             }
 
             $token = FacadesJWTAuth::fromUser($user);
@@ -374,11 +591,11 @@ class AuthController extends Controller
                 $isProduction ? 'None' : 'Lax'
             );
 
-            return redirect('http://localhost:5173/auth/google/success')
+            return redirect('http://103.158.196.79/eportal/auth/google/success')
                 ->withCookie($cookie);
         } catch (\Exception $e) {
             \Log::error('Google login error: ' . $e->getMessage());
-            return redirect('http://localhost:5173/login?error=GoogleLoginFailed');
+            return redirect('http://103.158.196.79/eportal/login?error=GoogleLoginFailed');
         }
     }
 
@@ -464,7 +681,8 @@ class AuthController extends Controller
             }
 
             // Get role model details for metadata
-            $roleModel = \App\Models\Role::find($role_id);
+            // $roleModel = \App\Models\Role::find($role_id);
+            $roleModel = null;
 
             // Calculate the permissions for this user, module, and role context
             $permissions = $this->getPermissionsForContext($user, $appModule_id, $role_id);
@@ -511,6 +729,185 @@ class AuthController extends Controller
                 'message' => 'Session invalid or expired. Error: ' . $e->getMessage(),
             ], 401);
         }
+    }
+
+    public function validateNidn(Request $request)
+    {
+        $nidn = $request->query('nidn');
+        if (!$nidn) return response()->json(['status' => 400, 'valid' => false, 'message' => 'NIDN wajib diisi.'], 400);
+
+        try {
+            $response = Http::withHeaders(['X-API-Key' => config('services.simpeg.api_key')])
+                ->get(config('services.simpeg.url') . '/api/external/validate/nidn', ['nidn' => $nidn]);
+            return response()->json($response->json(), $response->status());
+        } catch (\Exception $e) {
+            return response()->json(['status' => 500, 'valid' => false, 'message' => 'Gagal konek ke SIMPEG.'], 500);
+        }
+    }
+
+    public function validateNip(Request $request)
+    {
+        $nip = $request->query('nip');
+        if (!$nip) return response()->json(['status' => 400, 'valid' => false, 'message' => 'NIP wajib diisi.'], 400);
+
+        try {
+            $response = Http::withHeaders(['X-API-Key' => config('services.simpeg.api_key')])
+                ->get(config('services.simpeg.url') . '/api/external/validate/nip', ['nip' => $nip]);
+            return response()->json($response->json(), $response->status());
+        } catch (\Exception $e) {
+            return response()->json(['status' => 500, 'valid' => false, 'message' => 'Gagal konek ke SIMPEG.'], 500);
+        }
+    }
+
+    public function validateNpm(Request $request)
+    {
+        $npm = $request->query('npm');
+        if (!$npm) return response()->json(['status' => 400, 'valid' => false, 'message' => 'NPM wajib diisi.'], 400);
+
+        try {
+            $response = Http::get(config('services.siakad.url') . '/api/external/validate/npm', ['npm' => $npm]);
+            return response()->json($response->json(), $response->status());
+        } catch (\Exception $e) {
+            return response()->json(['status' => 500, 'valid' => false, 'message' => 'Gagal konek ke SIAKAD.'], 500);
+        }
+    }
+
+    public function sendResetLinkEmail(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|email',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 400,
+                'success' => false,
+                'message' => $validator->errors()->first(),
+                'data' => []
+            ], 400);
+        }
+
+        $email = $request->email;
+
+        // Cek user ada di pgsql
+        $uclUser = DB::connection('pgsql')
+            ->table('tb_users')
+            ->where('email', $email)
+            ->whereNull('deleted_at')
+            ->first();
+
+        if (!$uclUser) {
+            return response()->json([
+                'status' => 400,
+                'success' => false,
+                'message' => 'Email tidak ditemukan.',
+                'data' => []
+            ], 400);
+        }
+
+        try {
+            $token = Str::random(64);
+
+            DB::table('password_resets')->where('email', $email)->delete();
+            DB::table('password_resets')->insert([
+                'email'      => $email,
+                'token'      => Hash::make($token),
+                'created_at' => now(),
+            ]);
+
+            $resetUrl = rtrim(config('app.frontend_url'), '/') . "/reset-password?token={$token}&email=" . urlencode($email);
+
+            \Illuminate\Support\Facades\Mail::html(
+                view('emails.reset-password', [
+                    'resetUrl' => $resetUrl,
+                    'email'    => $email,
+                ])->render(),
+                function ($message) use ($email) {
+                    $message->to($email)->subject('Reset Password — E-Portal UIKA');
+                }
+            );
+
+            return response()->json([
+                'status' => 200,
+                'success' => true,
+                'message' => 'Password reset link sent successfully. Please check your email.',
+                'data' => []
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 500,
+                'success' => false,
+                'message' => 'An error occurred while sending the password reset link: ' . $e->getMessage(),
+                'data' => []
+            ], 500);
+        }
+    }
+
+    public function resetPassword(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'token'    => 'required',
+            'email'    => 'required|email',
+            'password' => 'required|string|min:8|confirmed',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status'  => 400,
+                'success' => false,
+                'message' => $validator->errors()->first(),
+                'data'    => []
+            ], 400);
+        }
+
+        $email = $request->email;
+        $token = $request->token;
+
+        $resetRecord = DB::table('password_resets')->where('email', $email)->first();
+
+        if (!$resetRecord) {
+            return response()->json([
+                'status'  => 400,
+                'success' => false,
+                'message' => 'Token reset tidak valid atau sudah kedaluwarsa.',
+                'data'    => []
+            ], 400);
+        }
+
+        if (!Hash::check($token, $resetRecord->token)) {
+            return response()->json([
+                'status'  => 400,
+                'success' => false,
+                'message' => 'Token reset tidak valid.',
+                'data'    => []
+            ], 400);
+        }
+
+        if (now()->diffInMinutes($resetRecord->created_at) > 60) {
+            DB::table('password_resets')->where('email', $email)->delete();
+            return response()->json([
+                'status'  => 400,
+                'success' => false,
+                'message' => 'Token reset sudah kedaluwarsa. Silakan minta link baru.',
+                'data'    => []
+            ], 400);
+        }
+
+        // Update password di pgsql
+        DB::connection('pgsql')
+            ->table('tb_users')
+            ->where('email', $email)
+            ->update(['password' => Hash::make($request->password)]);
+
+        // Hapus token setelah dipakai
+        DB::table('password_resets')->where('email', $email)->delete();
+
+        return response()->json([
+            'status'  => 200,
+            'success' => true,
+            'message' => 'Password has been reset successfully.',
+            'data'    => []
+        ], 200);
     }
 
     private function getPermissionsForContext($user, $appModuleId, $roleId): array

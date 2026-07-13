@@ -269,4 +269,16 @@ class UserController extends Controller
             return $this->errorResponse('Failed to unassign unit: ' . $e->getMessage(), 500);
         }
     }
+
+    public function toggleActive(string $id): JsonResponse
+    {
+        try {
+            $user = $this->service->toggleActive($id);
+            return $this->successResponse($user, 'Status akun berhasil diubah');
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException) {
+            return $this->errorResponse('User not found', 404);
+        } catch (\Exception $e) {
+            return $this->errorResponse('Failed to toggle active: ' . $e->getMessage(), 500);
+        }
+    }
 }
