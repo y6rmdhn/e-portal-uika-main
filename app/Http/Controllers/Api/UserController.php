@@ -202,6 +202,22 @@ class UserController extends Controller
 
             $user = $this->service->updateAdmin($id, ['unit_id' => $request->unit_id]);
 
+            // Log Aktivitas
+            try {
+                $unit = \App\Models\Unit::find($request->unit_id);
+                $unitName = $unit ? "[{$unit->code}] {$unit->nama_unit}" : "ID {$request->unit_id}";
+                $actor = \Tymon\JWTAuth\Facades\JWTAuth::user();
+                $this->activityLog->log(
+                    'unit_assign',
+                    "Menugaskan unit {$unitName} ke user: {$user->email}",
+                    $actor?->user_id,
+                    $actor?->user_id,
+                    ['user_id' => $user->user_id, 'unit_id' => $request->unit_id, 'unit_name' => $unitName]
+                );
+            } catch (\Exception $e) {
+                // silent fail
+            }
+
             return $this->successResponse(
                 new UserAdminResource($user),
                 'Unit assigned successfully'
@@ -216,7 +232,32 @@ class UserController extends Controller
     public function unassignUnit(string $id): JsonResponse
     {
         try {
+            // Dapatkan info user sebelum unassign untuk log email
+            $userBefore = $this->service->getAdminDetail($id);
+            $oldUnitId = $userBefore->unit_id;
+            $unitName = "ID {$oldUnitId}";
+            if ($oldUnitId) {
+                $unit = \App\Models\Unit::find($oldUnitId);
+                if ($unit) {
+                    $unitName = "[{$unit->code}] {$unit->nama_unit}";
+                }
+            }
+
             $user = $this->service->updateAdmin($id, ['unit_id' => null]);
+
+            // Log Aktivitas
+            try {
+                $actor = \Tymon\JWTAuth\Facades\JWTAuth::user();
+                $this->activityLog->log(
+                    'unit_unassign',
+                    "Mencabut unit {$unitName} dari user: {$user->email}",
+                    $actor?->user_id,
+                    $actor?->user_id,
+                    ['user_id' => $user->user_id, 'old_unit_id' => $oldUnitId, 'unit_name' => $unitName]
+                );
+            } catch (\Exception $e) {
+                // silent fail
+            }
 
             return $this->successResponse(
                 new UserAdminResource($user),

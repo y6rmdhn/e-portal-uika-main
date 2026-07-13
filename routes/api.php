@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\JabatanController;
 use App\Http\Controllers\Api\UnitController;
 use App\Http\Controllers\Api\UserJabatanUnitController;
 use App\Http\Controllers\Api\SsoIntegrationController;
+use App\Http\Controllers\Api\ActivityLogController;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -160,6 +161,11 @@ Route::group(['middleware' => ['jwt.verify']], function () {
             Route::get('/{id}', [UnitController::class, 'show'])->name('show');
             Route::put('/{id}', [UnitController::class, 'update'])->name('update');
             Route::delete('/{id}', [UnitController::class, 'destroy'])->name('destroy');
+        });
+
+        // ── Activity Logs (Global CRUD) ───────────────────────────────────────────
+        Route::prefix('activity-logs')->name('activity-logs.')->group(function () {
+            Route::get('/', [ActivityLogController::class, 'index'])->name('index');
         });
 
         // ── User Unit Assignments ───────────────────────────────────────────────
