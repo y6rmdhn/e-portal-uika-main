@@ -20,13 +20,29 @@ class JwtMiddleware extends BaseMiddleware
         try {
             $token = $request->bearerToken();
 
-            $user = \Cache::remember('jwt_user_' . md5($token), 300, function () {
+            // Extract the user_id (sub) from the token payload without database query
+            $payload = FacadesJWTAuth::setToken($token)->getPayload();
+            $userId  = $payload->get('sub');
+
+            $user = \Cache::remember('jwt_user_id_' . $userId, 300, function () {
                 return FacadesJWTAuth::parseToken()->authenticate();
             });
 
             auth()->setUser($user);
         } catch (Exception $e) {
             \Cache::forget('jwt_user_' . md5($request->bearerToken() ?? ''));
+            try {
+                $token = $request->bearerToken();
+                if ($token) {
+                    $payload = FacadesJWTAuth::setToken($token)->getPayload();
+                    $userId  = $payload->get('sub');
+                    if ($userId) {
+                        \Cache::forget('jwt_user_id_' . $userId);
+                    }
+                }
+            } catch (Exception $ex) {
+                // ignore
+            }
 
             \Log::error('JWT Error: ' . $e->getMessage() . ' | Class: ' . get_class($e));
 
