@@ -20,6 +20,16 @@ class UserRepository implements UserRepositoryInterface
             $query->where('role', $filters['role']);
         }
 
+        if (!empty($filters['unit_id'])) {
+            $query->where(function ($q) use ($filters) {
+                $q->whereHas('unit', function ($uq) use ($filters) {
+                    $uq->where('id', $filters['unit_id']);
+                })->orWhereHas('userJabatanUnits', function ($uq) use ($filters) {
+                    $uq->where('unit_id', $filters['unit_id']);
+                });
+            });
+        }
+
         if (!empty($filters['search'])) {
             $search = $filters['search'];
             $query->where(function ($q) use ($search) {
@@ -127,30 +137,32 @@ class UserRepository implements UserRepositoryInterface
         if (!empty($data['password'])) $updateData['password'] = Hash::make($data['password']);
 
         // Determine updated roles list first
-        $rolesList = isset($data['roles']) ? $data['roles'] : null;
+        $rolesList = array_key_exists('roles', $data) ? $data['roles'] : null;
 
         // If roles list is updated, automatically set primary role to the first one in the list
         // (unless explicit role is provided)
-        $roleName = $data['role'] ?? ($rolesList !== null && !empty($rolesList) ? $rolesList[0] : null);
-
-        if ($roleName) {
-            $updateData['role'] = $roleName;
-            $jab = \App\Models\Jabatan::where('name', $roleName)->first();
-            if ($jab) {
-                $updateData['role_id'] = $jab->id;
-            } else {
+        if ($rolesList !== null) {
+            if (empty($rolesList)) {
+                // If roles list is emptied, we should still enforce a default fallback role since the database requires non-null 'role'
+                // However, our frontend now blocks submitting empty roles. As a fallback:
+                $updateData['role'] = ''; 
                 $updateData['role_id'] = null;
+            } else {
+                $roleName = $data['role'] ?? $rolesList[0];
+                $updateData['role'] = $roleName;
+                $jab = \App\Models\Jabatan::where('name', $roleName)->first();
+                $updateData['role_id'] = $jab ? $jab->id : null;
             }
         }
 
         $deptCode = null;
-        if (isset($data['unit_id'])) {
+        if (array_key_exists('unit_id', $data)) {
             if ($data['unit_id']) {
                 $unit = \App\Models\Unit::find($data['unit_id']);
                 $deptCode = $unit ? $unit->code : null;
             }
             $updateData['department_code'] = $deptCode;
-        } elseif (isset($data['department_code'])) {
+        } elseif (array_key_exists('department_code', $data)) {
             $deptCode = $data['department_code'];
             $updateData['department_code'] = $deptCode;
         }
@@ -164,15 +176,15 @@ class UserRepository implements UserRepositoryInterface
         }
 
         // Update local unit & role mapping
-        if (isset($data['unit_id']) || isset($data['department_code']) || isset($data['roles'])) {
+        if (array_key_exists('unit_id', $data) || array_key_exists('department_code', $data) || $rolesList !== null) {
             $unitId = null;
-            if (isset($data['unit_id'])) {
+            if (array_key_exists('unit_id', $data)) {
                 $unitId = $data['unit_id'];
-            } elseif (isset($data['department_code'])) {
+            } elseif (array_key_exists('department_code', $data)) {
                 $unit = \App\Models\Unit::where('code', $data['department_code'])->first();
                 $unitId = $unit ? $unit->id : null;
             } else {
-                $unitId = $user->unit_id;
+                $unitId = $user->unit?->id;
             }
 
             if ($rolesList === null) {
@@ -193,6 +205,8 @@ class UserRepository implements UserRepositoryInterface
                 }
             }
         }
+
+        \Cache::forget('jwt_user_id_' . $id);
 
         return $this->findById($id);
     }
@@ -229,6 +243,8 @@ class UserRepository implements UserRepositoryInterface
             ->where('user_id', $id)
             ->update(['isverified' => !$user->isverified]);
 
+        \Cache::forget('jwt_user_id_' . $id);
+
         return $this->findById($id);
     }
 
@@ -236,6 +252,8 @@ class UserRepository implements UserRepositoryInterface
     {
         $user = $this->findById($id);
         $user->update(['password' => Hash::make($password)]);
+        \Cache::forget('jwt_user_id_' . $id);
+
         return $this->findById($id);
     }
 

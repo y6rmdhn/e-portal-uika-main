@@ -33,7 +33,7 @@ class UserController extends Controller
     public function index(Request $request): JsonResponse
     {
         try {
-            $filters = $request->only(['role', 'is_active', 'search', 'per_page']);
+            $filters = $request->only(['role', 'is_active', 'search', 'per_page', 'unit_id']);
 
             $users = $this->service->getAllUsers($filters);
 

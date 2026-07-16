@@ -45,6 +45,8 @@ class UserJabatanUnitController extends Controller
             $userModel->assignRole($jabatanModel->name);
         }
 
+        \Cache::forget('jwt_user_id_' . $request->user_id);
+
         return ResponseBuilder::success(200, 'Jabatan & Unit assigned successfully.', $assignment->load(['jabatan', 'unit']));
     }
 
@@ -91,6 +93,8 @@ class UserJabatanUnitController extends Controller
                 $userModel->removeRole($jabatanModel->name);
             }
         }
+
+        \Cache::forget('jwt_user_id_' . $userId);
 
         return ResponseBuilder::success(200, 'Jabatan & Unit unassigned successfully.');
     }
