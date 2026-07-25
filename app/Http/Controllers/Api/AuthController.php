@@ -430,7 +430,7 @@ class AuthController extends Controller
 
             // ── Back-Channel Logout ke semua aplikasi terintegrasi ──
             if ($userId) {
-                $secret = env('SIMPEG_API_KEY', 'secret_sso_uika');
+                $secret = env('EXTERNAL_SYNC_API_KEY', 'secret_sso_uika');
                 $apps = [
                     env('SIMPEG_API_URL', 'http://localhost:3000') . '/api/sso/logout',
                     env('SIAKAD_API_URL', 'http://localhost:3000') . '/api/sso/logout',
