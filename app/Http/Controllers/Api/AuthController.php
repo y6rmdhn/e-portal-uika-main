@@ -420,9 +420,37 @@ class AuthController extends Controller
             $token = $request->bearerToken() ?? $request->cookie('uika_sso_token');
             \Cache::forget('jwt_user_' . md5($token ?? ''));
 
+            // Ambil user_id sebelum token di-invalidate
+            $user = FacadesJWTAuth::parseToken()->authenticate();
+            $userId = $user?->user_id;
+
             FacadesJWTAuth::parseToken()->invalidate();
 
             $cookie = cookie()->forget('uika_sso_token');
+
+            // ── Back-Channel Logout ke semua aplikasi terintegrasi ──
+            if ($userId) {
+                $secret = env('SIMPEG_API_KEY', 'secret_sso_uika');
+                $apps = [
+                    env('SIMPEG_API_URL', 'http://localhost:3000') . '/api/sso/logout',
+                    env('SIAKAD_API_URL', 'http://localhost:3000') . '/api/sso/logout',
+                    env('ELIBRARY_URL', 'http://localhost:8001') . '/sso/logout',
+                    env('UCL_URL', 'http://localhost:4242') . '/sso/logout',
+                ];
+
+                foreach ($apps as $url) {
+                    try {
+                        \Log::info("SLO: hitting {$url} untuk user {$userId}");
+                        $response = \Illuminate\Support\Facades\Http::timeout(3)->post($url, [
+                            'user_id' => $userId,
+                            'secret'  => $secret,
+                        ]);
+                        \Log::info("SLO response dari {$url}: " . $response->status());
+                    } catch (\Exception $e) {
+                        \Log::warning("SLO gagal ke {$url}: " . $e->getMessage());
+                    }
+                }
+            }
 
             $this->activityLog->logForCurrentUser(
                 ActivityLogService::TYPE_LOGOUT,
@@ -430,32 +458,32 @@ class AuthController extends Controller
             );
 
             return response()->json([
-                'status' => 200,
+                'status'  => 200,
                 'success' => true,
                 'message' => 'User logged out successfully',
-                'data' => []
+                'data'    => []
             ], 200)->withCookie($cookie);
         } catch (TokenInvalidException $e) {
             return response()->json([
-                'status' => 400,
+                'status'  => 400,
                 'success' => false,
                 'message' => 'Session has expired or token is invalid.',
-                'data' => []
+                'data'    => []
             ], 400);
         } catch (JWTException $e) {
             return response()->json([
-                'status' => 500,
+                'status'  => 500,
                 'success' => false,
                 'message' => 'An error occurred on the server while logging out.',
-                'data' => []
+                'data'    => []
             ], 500);
         } catch (\Exception $e) {
             \Log::error('Logout error: ' . $e->getMessage());
             return response()->json([
-                'status' => 500,
+                'status'  => 500,
                 'success' => false,
                 'message' => $e->getMessage(),
-                'data' => []
+                'data'    => []
             ], 500);
         }
     }
