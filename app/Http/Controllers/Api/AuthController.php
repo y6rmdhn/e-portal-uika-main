@@ -424,6 +424,8 @@ class AuthController extends Controller
             $user = FacadesJWTAuth::parseToken()->authenticate();
             $userId = $user?->user_id;
 
+            \Log::info('SLO debug: userId=' . ($userId ?? 'NULL') . ' user=' . ($user ? 'found' : 'null'));
+
             FacadesJWTAuth::parseToken()->invalidate();
 
             $cookie = cookie()->forget('uika_sso_token');
