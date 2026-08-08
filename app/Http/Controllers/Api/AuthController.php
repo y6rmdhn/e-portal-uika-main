@@ -171,7 +171,9 @@ class AuthController extends Controller
             }
         }
 
-        $isverified = $isDosenExt ? false : true;
+        $isPMM = $request->boolean('is_pmm');
+        $isDosenExt = $request->role === 'Dosen_Ext';
+        $isverified = ($isDosenExt || $isPMM) ? false : true;
         $userId = (string) \Illuminate\Support\Str::uuid();
 
         DB::beginTransaction();
@@ -272,7 +274,9 @@ class AuthController extends Controller
 
         $message = $isDosenExt
             ? 'Registrasi berhasil. Akun Anda menunggu verifikasi oleh admin.'
-            : 'Registrasi berhasil.';
+            : ($isPMM
+                ? 'Registrasi berhasil. Akun Anda menunggu verifikasi oleh admin.'
+                : 'Registrasi berhasil.');
 
         return response()->json(['status' => 201, 'message' => $message], 201);
     }
