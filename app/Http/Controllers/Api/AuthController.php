@@ -752,6 +752,18 @@ class AuthController extends Controller
                 'appModule_id' => $appModule_id,
             ]);
 
+            // ← tambah log SSO access
+            $appModule = \App\Models\AppModule::find($appModule_id);
+            $this->activityLog->logForCurrentUser(
+                ActivityLogService::TYPE_APP_ACCESS,
+                'Mengakses ' . ($appModule?->name ?? 'Aplikasi'),
+                [
+                    'app_module_id'   => (int) $appModule_id,
+                    'app_module_name' => $appModule?->name,
+                    'target_url'      => $targetUrl,
+                ]
+            );
+
             return response()->json([
                 'status'       => 200,
                 'redirect_url' => $redirectUrl,
