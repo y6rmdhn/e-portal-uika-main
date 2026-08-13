@@ -39,6 +39,10 @@ class UserRepository implements UserRepositoryInterface
             });
         }
 
+        if (isset($filters['isverified']) && $filters['isverified'] !== '') {
+            $query->where('isverified', (bool) $filters['isverified']);
+        }
+
         $perPage = $filters['per_page'] ?? 10;
         return $query->orderByDesc('created_at')->paginate($perPage);
     }
@@ -145,7 +149,7 @@ class UserRepository implements UserRepositoryInterface
             if (empty($rolesList)) {
                 // If roles list is emptied, we should still enforce a default fallback role since the database requires non-null 'role'
                 // However, our frontend now blocks submitting empty roles. As a fallback:
-                $updateData['role'] = ''; 
+                $updateData['role'] = '';
                 $updateData['role_id'] = null;
             } else {
                 $roleName = $data['role'] ?? $rolesList[0];

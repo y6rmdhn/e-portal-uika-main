@@ -25,6 +25,8 @@ class UserAdminResource extends JsonResource
             'nidn'          => $this->nidn,
             'npm'           => $this->npm,
             'nik'           => $dataPribadi?->nik, // ← BARU: khusus Dosen_Ext, diambil dari tb_data_pribadi
+            'nama_lengkap'  => $dataPribadi?->nama_lengkap,  // ← tambah
+            'instansi_ext'  => $dataPribadi?->instansi_ext,
             'isverified'    => (bool) ($this->isverified ?? true),
             'unit_id'       => $unit?->id,
             'unit'          => $unit ? [
