@@ -120,6 +120,12 @@ class SsoController extends Controller
 
             $module = AppModule::find($appModuleId);
 
+            // ← filter permissions untuk role_id ini
+            $role = \App\Models\Role::find($roleId);
+            $rolePermissions = $role
+                ? $role->permissions->pluck('name')->values()->toArray()
+                : [];
+
             $accessData = [
                 'has_access'  => true,
                 'module'      => $module ? [
@@ -132,6 +138,7 @@ class SsoController extends Controller
                 'unit_id'     => $unitId,
                 'unit_name'   => $unitName,
                 'permissions' => $permissions,
+                'role_permissions' => $rolePermissions,
             ];
         } else {
             $appModuleId = $request->query('appModule_id');

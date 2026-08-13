@@ -60,8 +60,14 @@ class UserController extends Controller
     {
         try {
             $data = $request->validated();
-
             $user = $this->service->createUser($data);
+
+            // ← log
+            $this->activityLog->logForCurrentUser(
+                ActivityLogService::TYPE_UNIT_CREATE,
+                "Membuat user baru: {$user->email}",
+                ['user_id' => $user->user_id, 'role' => $user->role]
+            );
 
             return $this->successResponse(
                 new UserAdminResource($user),
@@ -108,8 +114,14 @@ class UserController extends Controller
     {
         try {
             $data = $request->validated();
-
             $user = $this->service->updateAdmin($id, $data);
+
+            // ← log
+            $this->activityLog->logForCurrentUser(
+                ActivityLogService::TYPE_UNIT_UPDATE,
+                "Mengupdate user: {$user->email}",
+                ['user_id' => $user->user_id]
+            );
 
             return $this->successResponse(
                 new UserAdminResource($user),
@@ -129,12 +141,18 @@ class UserController extends Controller
     public function destroy(string $id): JsonResponse
     {
         try {
+            $user = $this->service->getAdminDetail($id);
+
+            // ← log sebelum delete
+            $this->activityLog->logForCurrentUser(
+                ActivityLogService::TYPE_UNIT_DELETE,
+                "Menghapus user: {$user->email}",
+                ['user_id' => $user->user_id, 'role' => $user->role]
+            );
+
             $this->service->deleteAdmin($id);
 
-            return $this->successResponse(
-                null,
-                'User deleted successfully'
-            );
+            return $this->successResponse(null, 'User deleted successfully');
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException) {
             return $this->errorResponse('User not found', 404);
         } catch (\Exception $e) {
@@ -145,7 +163,15 @@ class UserController extends Controller
     public function resetPassword(ResetUserPasswordRequest $request, string $id): JsonResponse
     {
         try {
+            $user = $this->service->getAdminDetail($id);
             $this->service->resetUserPassword($id, $request->validated()['password']);
+
+            // ← log
+            $this->activityLog->logForCurrentUser(
+                ActivityLogService::TYPE_RESET_PASSWORD,
+                "Reset password user: {$user->email}",
+                ['user_id' => $user->user_id]
+            );
 
             return $this->successResponse(null, 'Password berhasil direset dan email notifikasi telah dikirim.');
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException) {
@@ -158,6 +184,23 @@ class UserController extends Controller
     public function export(Request $request): \Symfony\Component\HttpFoundation\BinaryFileResponse
     {
         $filters = $request->only(['role', 'search']);
+
+        // ← log manual
+        try {
+            $actor = \Tymon\JWTAuth\Facades\JWTAuth::user();
+            if ($actor) {
+                $this->activityLog->log(
+                    ActivityLogService::TYPE_APP_ACCESS,
+                    'Export data user',
+                    $actor->user_id,
+                    $actor->user_id,
+                    ['filters' => $filters]
+                );
+            }
+        } catch (\Exception $e) {
+            // silent fail
+        }
+
         return Excel::download(new UsersExport($filters), 'users-' . now()->format('Y-m-d') . '.xlsx');
     }
 
@@ -170,6 +213,22 @@ class UserController extends Controller
         try {
             $import = new UsersImport();
             Excel::import($import, $request->file('file'));
+
+            // ← log manual
+            try {
+                $actor = \Tymon\JWTAuth\Facades\JWTAuth::user();
+                if ($actor) {
+                    $this->activityLog->log(
+                        ActivityLogService::TYPE_APP_ACCESS,
+                        'Import data user: ' . count($import->imported) . ' berhasil, ' . count($import->failed) . ' gagal',
+                        $actor->user_id,
+                        $actor->user_id,
+                        ['imported' => count($import->imported), 'failed' => count($import->failed)]
+                    );
+                }
+            } catch (\Exception $e) {
+                //
+            }
 
             return $this->successResponse([
                 'imported' => count($import->imported),
@@ -276,6 +335,15 @@ class UserController extends Controller
     {
         try {
             $user = $this->service->toggleActive($id);
+            $status = $user->isverified ? 'diaktifkan' : 'dinonaktifkan';
+
+            // ← log
+            $this->activityLog->logForCurrentUser(
+                ActivityLogService::TYPE_UNIT_UPDATE,
+                "Akun user {$user->email} {$status}",
+                ['user_id' => $user->user_id, 'isverified' => $user->isverified]
+            );
+
             return $this->successResponse($user, 'Status akun berhasil diubah');
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException) {
             return $this->errorResponse('User not found', 404);
