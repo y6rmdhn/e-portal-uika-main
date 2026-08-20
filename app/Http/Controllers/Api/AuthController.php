@@ -443,6 +443,7 @@ class AuthController extends Controller
                     env('ELIBRARY_URL', 'http://localhost:8001') . '/sso/logout',
                     env('UCL_URL', 'http://localhost:4242') . '/sso/logout',
                     env('CBT_URL') . '/api/sso/logout',
+                ];
 
                 foreach ($apps as $url) {
                     try {
