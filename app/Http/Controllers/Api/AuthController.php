@@ -442,7 +442,7 @@ class AuthController extends Controller
                     env('SIAKAD_API_URL', 'http://localhost:3000') . '/api/sso/logout',
                     env('ELIBRARY_URL', 'http://localhost:8001') . '/sso/logout',
                     env('UCL_URL', 'http://localhost:4242') . '/sso/logout',
-                ];
+                    env('CBT_URL') . '/api/sso/logout',
 
                 foreach ($apps as $url) {
                     try {
