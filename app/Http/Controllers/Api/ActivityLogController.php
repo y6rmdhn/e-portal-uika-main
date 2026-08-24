@@ -27,6 +27,7 @@ class ActivityLogController extends Controller
         try {
             $filters = $request->only([
                 'type',
+                'types',
                 'date_from',
                 'date_to',
                 'search',
@@ -39,6 +40,39 @@ class ActivityLogController extends Controller
             return $this->paginatedResponse($logs, 'Activity logs retrieved successfully', ActivityLogResource::class);
         } catch (\Throwable $e) {
             return $this->errorResponse('Failed to retrieve activity logs: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * GET /api/admins/activity-logs/types
+     * Daftar tipe aktivitas untuk mengisi dropdown filter.
+     * Sebelumnya daftar ini di-hardcode di frontend sehingga tipe baru
+     * tidak pernah muncul di filter.
+     */
+    public function types(): JsonResponse
+    {
+        return $this->successResponse(
+            ActivityLogResource::typeOptions(),
+            'Activity log types retrieved successfully'
+        );
+    }
+
+    /**
+     * GET /api/admins/activity-logs/stats
+     * Ringkasan untuk kartu statistik dan grafik tren.
+     */
+    public function stats(Request $request): JsonResponse
+    {
+        try {
+            $days = (int) $request->query('days', 7);
+            $days = max(1, min($days, 30));
+
+            return $this->successResponse(
+                $this->activityLogService->getStats($days),
+                'Activity log stats retrieved successfully'
+            );
+        } catch (\Throwable $e) {
+            return $this->errorResponse('Failed to retrieve stats: ' . $e->getMessage(), 500);
         }
     }
 }

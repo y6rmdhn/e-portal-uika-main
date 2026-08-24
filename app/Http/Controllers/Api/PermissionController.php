@@ -8,9 +8,32 @@ use Illuminate\Support\Facades\Validator;
 use App\Models\Permission;
 use App\Models\AppModule;
 use App\Http\Helper\ResponseBuilder;
+use App\Services\ActivityLogService;
+use Tymon\JWTAuth\Facades\JWTAuth;
 
 class PermissionController extends Controller
 {
+    protected ActivityLogService $activityLog;
+
+    public function __construct(ActivityLogService $activityLog)
+    {
+        $this->activityLog = $activityLog;
+    }
+
+    /**
+     * Catat aktivitas. Kegagalan logging tidak boleh menggagalkan operasi utama,
+     * jadi exception-nya sengaja ditelan.
+     */
+    private function logActivity(string $type, string $description, array $metadata = []): void
+    {
+        try {
+            $actor = JWTAuth::user();
+            $this->activityLog->log($type, $description, $actor?->user_id, $actor?->user_id, $metadata);
+        } catch (\Exception $e) {
+            // silent fail
+        }
+    }
+
     /**
      * GET /api/admins/permissions
      * List all permissions with their roles.
@@ -24,9 +47,19 @@ class PermissionController extends Controller
             $query->where('appModule_id', $request->appModule_id);
         }
 
-        $permissions = $query->get();
+        if ($request->filled('search')) {
+            $query->where('name', 'like', '%' . $request->search . '%');
+        }
 
-        return ResponseBuilder::success(200, 'success', $permissions);
+        $query->orderBy('name');
+
+        // ?all=1 → daftar penuh, dipakai selector (Role ↔ Permission, dialog).
+        // Tanpa itu, endpoint ini selalu dipaginasi.
+        if ($request->boolean('all')) {
+            return ResponseBuilder::success(200, 'success', $query->get());
+        }
+
+        return ResponseBuilder::paginated($query->paginate($request->query('per_page', 25)));
     }
 
     /**
@@ -76,6 +109,12 @@ class PermissionController extends Controller
 
         $permission->load('appModule');
 
+        $this->logActivity(
+            ActivityLogService::TYPE_PERMISSION_CREATE,
+            "Membuat permission: {$permission->name}",
+            ['permission_id' => $permission->id, 'name' => $permission->name, 'appModule_id' => $permission->appModule_id]
+        );
+
         return ResponseBuilder::success(201, 'Permission created successfully.', $permission);
     }
 
@@ -109,9 +148,21 @@ class PermissionController extends Controller
             ], 422);
         }
 
+        $oldName = $permission->name;
+
         $permission->update($request->only('name', 'guard_name', 'appModule_id'));
 
         $permission->load('appModule');
+
+        $this->logActivity(
+            ActivityLogService::TYPE_PERMISSION_UPDATE,
+            "Memperbarui permission: {$oldName} -> {$permission->name}",
+            [
+                'permission_id' => $permission->id,
+                'before'        => ['name' => $oldName],
+                'after'         => ['name' => $permission->name, 'appModule_id' => $permission->appModule_id],
+            ]
+        );
 
         return ResponseBuilder::success(200, 'Permission updated successfully.', $permission);
     }
@@ -164,6 +215,17 @@ class PermissionController extends Controller
             ]);
         }
 
+        if (count($created) > 0) {
+            $names = array_map(fn ($p) => $p->name, $created);
+            $this->logActivity(
+                ActivityLogService::TYPE_PERMISSION_CREATE,
+                count($names) === 1
+                    ? "Membuat permission: {$names[0]}"
+                    : 'Membuat ' . count($names) . ' permission: ' . implode(', ', $names),
+                ['appModule_id' => $appModuleId, 'created' => $names, 'skipped' => $skipped]
+            );
+        }
+
         return ResponseBuilder::success(201, 'Bulk permission created.', [
             'created' => $created,
             'skipped' => $skipped,
@@ -195,6 +257,7 @@ class PermissionController extends Controller
 
         $updated = [];
         $errors  = [];
+        $changes = [];
 
         foreach ($request->permissions as $item) {
             $permission = Permission::find($item['id']);
@@ -215,13 +278,27 @@ class PermissionController extends Controller
                 continue;
             }
 
+            $oldName = $permission->name;
+
             $permission->update([
                 'name'         => $item['name'],
                 'guard_name'   => $guardName,
                 'appModule_id' => $item['appModule_id'] ?? $permission->appModule_id,
             ]);
 
+            $changes[] = ['id' => $permission->id, 'from' => $oldName, 'to' => $permission->name];
             $updated[] = $permission->fresh(['appModule']);
+        }
+
+        if (count($changes) > 0) {
+            $ringkas = array_map(fn ($c) => "{$c['from']} -> {$c['to']}", $changes);
+            $this->logActivity(
+                ActivityLogService::TYPE_PERMISSION_UPDATE,
+                count($ringkas) === 1
+                    ? "Memperbarui permission: {$ringkas[0]}"
+                    : 'Memperbarui ' . count($ringkas) . ' permission: ' . implode(', ', $ringkas),
+                ['changes' => $changes, 'errors' => $errors]
+            );
         }
 
         return ResponseBuilder::success(200, 'Bulk permission updated.', [
@@ -246,7 +323,15 @@ class PermissionController extends Controller
             ], 404);
         }
 
+        $deletedName = $permission->name;
+
         $permission->delete();
+
+        $this->logActivity(
+            ActivityLogService::TYPE_PERMISSION_DELETE,
+            "Menghapus permission: {$deletedName}",
+            ['permission_id' => $id, 'name' => $deletedName]
+        );
 
         return response()->json([
             'status'  => 200,
@@ -276,12 +361,22 @@ class PermissionController extends Controller
         }
 
         $ids      = $request->ids;
-        $existing = Permission::whereIn('id', $ids)->pluck('id')->toArray();
+        $rows     = Permission::whereIn('id', $ids)->get(['id', 'name']);
+        $existing = $rows->pluck('id')->toArray();
+        $names    = $rows->pluck('name')->toArray();
         $notFound = array_diff($ids, $existing);
 
         $deleted  = 0;
         if (!empty($existing)) {
             $deleted = Permission::whereIn('id', $existing)->delete();
+
+            $this->logActivity(
+                ActivityLogService::TYPE_PERMISSION_DELETE,
+                count($names) === 1
+                    ? "Menghapus permission: {$names[0]}"
+                    : 'Menghapus ' . count($names) . ' permission: ' . implode(', ', $names),
+                ['permission_ids' => $existing, 'names' => $names]
+            );
         }
 
         return ResponseBuilder::success(200, 'Bulk permission deleted.', [

@@ -41,8 +41,31 @@ class Handler extends ExceptionHandler
 
     public function render($request, Throwable $e)
     {
-        if($e instanceof \Spatie\Permission\Exceptions\UnauthorizedException){
-            return redirect()->route('dashboard')->with('error', 'Anda tidak memiliki akses ke halaman tersebut');
+        if ($e instanceof \Spatie\Permission\Exceptions\UnauthorizedException) {
+            return response()->json([
+                'status'  => 403,
+                'message' => 'Anda tidak memiliki akses ke resource ini.',
+                'data'    => []
+            ], 403);
+        }
+
+        // Aplikasi ini API JSON — jangan pernah balas HTML ke klien.
+        if ($request->is('api/*') || $request->expectsJson()) {
+            if ($e instanceof \Symfony\Component\HttpKernel\Exception\NotFoundHttpException) {
+                return response()->json([
+                    'status'  => 404,
+                    'message' => 'Endpoint tidak ditemukan.',
+                    'data'    => []
+                ], 404);
+            }
+
+            if ($e instanceof \Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException) {
+                return response()->json([
+                    'status'  => 405,
+                    'message' => 'Method tidak diizinkan untuk endpoint ini.',
+                    'data'    => []
+                ], 405);
+            }
         }
 
         return parent::render($request, $e);
