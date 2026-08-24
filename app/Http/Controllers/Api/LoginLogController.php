@@ -133,7 +133,7 @@ class LoginLogController extends Controller
     public function grouped(Request $request): JsonResponse
     {
         try {
-            $filters = $request->only(['date_from', 'date_to', 'status', 'user_id']);
+            $filters = $request->only(['date_from', 'date_to', 'status', 'user_id', 'device_type', 'search']);
 
             $query = DB::table('user_login_logs')
                 ->selectRaw("
@@ -163,6 +163,28 @@ class LoginLogController extends Controller
             }
             if (!empty($filters['user_id'])) {
                 $query->where('user_id', $filters['user_id']);
+            }
+
+            // Filter device sebelumnya dikirim frontend tapi tidak pernah dibaca,
+            // sehingga dropdown-nya tidak berefek apa pun.
+            if (!empty($filters['device_type'])) {
+                $query->where('device_type', $filters['device_type']);
+            }
+
+            // Cari berdasarkan email atau IP. Email ada di tabel user, jadi
+            // diterjemahkan dulu menjadi daftar user_id.
+            if (!empty($filters['search'])) {
+                $term = $filters['search'];
+                $matchedIds = \App\Models\User::where('email', 'like', "%{$term}%")
+                    ->pluck('user_id')
+                    ->all();
+
+                $query->where(function ($q) use ($matchedIds, $term) {
+                    $q->where('ip_address', 'like', "%{$term}%");
+                    if (!empty($matchedIds)) {
+                        $q->orWhereIn('user_id', $matchedIds);
+                    }
+                });
             }
 
             $logs = $query->paginate($request->query('per_page', 20));
@@ -204,6 +226,8 @@ class LoginLogController extends Controller
                     'per_page'     => $logs->perPage(),
                     'total'        => $logs->total(),
                     'last_page'    => $logs->lastPage(),
+                    'from'         => $logs->firstItem(),
+                    'to'           => $logs->lastItem(),
                 ],
             ]);
         } catch (\Throwable $e) {

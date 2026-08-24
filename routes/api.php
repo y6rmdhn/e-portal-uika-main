@@ -178,6 +178,8 @@ Route::group(['middleware' => ['jwt.verify']], function () {
         // ── Activity Logs (Global CRUD) ───────────────────────────────────────────
         Route::prefix('activity-logs')->name('activity-logs.')->group(function () {
             Route::get('/', [ActivityLogController::class, 'index'])->name('index');
+            Route::get('/types', [ActivityLogController::class, 'types'])->name('types');
+            Route::get('/stats', [ActivityLogController::class, 'stats'])->name('stats');
         });
 
         // ── User Unit Assignments ───────────────────────────────────────────────

@@ -64,7 +64,7 @@ class UserController extends Controller
 
             // ← log
             $this->activityLog->logForCurrentUser(
-                ActivityLogService::TYPE_UNIT_CREATE,
+                ActivityLogService::TYPE_USER_CREATE,
                 "Membuat user baru: {$user->email}",
                 ['user_id' => $user->user_id, 'role' => $user->role]
             );
@@ -118,7 +118,7 @@ class UserController extends Controller
 
             // ← log
             $this->activityLog->logForCurrentUser(
-                ActivityLogService::TYPE_UNIT_UPDATE,
+                ActivityLogService::TYPE_USER_UPDATE,
                 "Mengupdate user: {$user->email}",
                 ['user_id' => $user->user_id]
             );
@@ -145,7 +145,7 @@ class UserController extends Controller
 
             // ← log sebelum delete
             $this->activityLog->logForCurrentUser(
-                ActivityLogService::TYPE_UNIT_DELETE,
+                ActivityLogService::TYPE_USER_DELETE,
                 "Menghapus user: {$user->email}",
                 ['user_id' => $user->user_id, 'role' => $user->role]
             );
@@ -339,7 +339,7 @@ class UserController extends Controller
 
             // ← log
             $this->activityLog->logForCurrentUser(
-                ActivityLogService::TYPE_UNIT_UPDATE,
+                ActivityLogService::TYPE_USER_TOGGLE,
                 "Akun user {$user->email} {$status}",
                 ['user_id' => $user->user_id, 'isverified' => $user->isverified]
             );

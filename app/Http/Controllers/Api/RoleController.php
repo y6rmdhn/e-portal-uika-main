@@ -22,11 +22,24 @@ class RoleController extends Controller
      * GET /api/admins/roles
      * List all roles with their permissions.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $roles = Role::with('permissions')->get();
+        $query = Role::with('permissions');
 
-        return ResponseBuilder::success(200, 'success', $roles);
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('nama_jabatan', 'like', "%{$search}%")
+                  ->orWhere('name', 'like', "%{$search}%");
+            });
+        }
+
+        // ?all=1 mengembalikan daftar penuh untuk selector (mis. Role-Permission).
+        if ($request->boolean('all')) {
+            return ResponseBuilder::success(200, 'success', $query->get());
+        }
+
+        return ResponseBuilder::paginated($query->paginate($request->query('per_page', 25)));
     }
 
     /**

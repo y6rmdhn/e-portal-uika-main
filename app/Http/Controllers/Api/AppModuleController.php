@@ -8,18 +8,46 @@ use Illuminate\Support\Facades\Validator;
 use App\Models\AppModule;
 use App\Models\SsoClient;
 use App\Http\Helper\ResponseBuilder;
+use App\Services\ActivityLogService;
+use Tymon\JWTAuth\Facades\JWTAuth;
 
 class AppModuleController extends Controller
 {
+    protected ActivityLogService $activityLog;
+
+    public function __construct(ActivityLogService $activityLog)
+    {
+        $this->activityLog = $activityLog;
+    }
+
+    private function logActivity(string $type, string $description, array $metadata = []): void
+    {
+        try {
+            $actor = JWTAuth::user();
+            $this->activityLog->log($type, $description, $actor?->user_id, $actor?->user_id, $metadata);
+        } catch (\Exception $e) {
+            // silent fail
+        }
+    }
+
     /**
      * GET /api/admins/app-modules
      * List all App Modules with their permissions and SSO Client credentials.
      */
     public function index(Request $request)
     {
-        $data = AppModule::with(['permission', 'ssoClient'])->get();
+        $query = AppModule::with(['permission', 'ssoClient']);
 
-        return ResponseBuilder::success(200, 'success', $data);
+        if ($request->filled('search')) {
+            $query->where('name', 'like', '%' . $request->search . '%');
+        }
+
+        // ?all=1 mengembalikan daftar penuh untuk selector (dialog permission).
+        if ($request->boolean('all')) {
+            return ResponseBuilder::success(200, 'success', $query->get());
+        }
+
+        return ResponseBuilder::paginated($query->paginate($request->query('per_page', 25)));
     }
 
     /**
@@ -81,6 +109,12 @@ class AppModuleController extends Controller
         $appModuleData = $appModule->load('ssoClient')->toArray();
         $appModuleData['sso_client']['plain_secret'] = $credentials['plain_secret'];
 
+        $this->logActivity(
+            ActivityLogService::TYPE_APP_MODULE_CREATE,
+            "Membuat modul aplikasi: {$appModule->name}",
+            ['app_module_id' => $appModule->id, 'name' => $appModule->name, 'url' => $appModule->url]
+        );
+
         return ResponseBuilder::success(201, 'App Module and SSO Client credentials generated successfully.', $appModuleData);
     }
 
@@ -123,6 +157,12 @@ class AppModuleController extends Controller
             ]);
         }
 
+        $this->logActivity(
+            ActivityLogService::TYPE_APP_MODULE_UPDATE,
+            "Memperbarui modul aplikasi: {$appModule->name}",
+            ['app_module_id' => $appModule->id, 'name' => $appModule->name, 'url' => $appModule->url]
+        );
+
         return ResponseBuilder::success(200, 'App Module updated successfully.', $appModule->load('ssoClient'));
     }
 
@@ -143,7 +183,15 @@ class AppModuleController extends Controller
         }
 
         // Soft-delete App Module
+        $deletedName = $appModule->name;
+
         $appModule->delete();
+
+        $this->logActivity(
+            ActivityLogService::TYPE_APP_MODULE_DELETE,
+            "Menghapus modul aplikasi: {$deletedName}",
+            ['app_module_id' => $id, 'name' => $deletedName]
+        );
 
         return response()->json([
             'status'  => 200,
@@ -175,6 +223,12 @@ class AppModuleController extends Controller
 
         $appModuleData = $appModule->toArray();
         $appModuleData['sso_client']['plain_secret'] = $credentials['plain_secret'];
+
+        $this->logActivity(
+            ActivityLogService::TYPE_SSO_SECRET_RESET,
+            "Mereset SSO client secret modul: {$appModule->name}",
+            ['app_module_id' => $appModule->id, 'name' => $appModule->name]
+        );
 
         return ResponseBuilder::success(200, 'SSO Client secret reset successfully. Please copy the new secret now.', $appModuleData);
     }

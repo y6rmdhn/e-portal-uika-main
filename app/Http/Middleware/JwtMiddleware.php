@@ -28,6 +28,17 @@ class JwtMiddleware extends BaseMiddleware
                 return FacadesJWTAuth::parseToken()->authenticate();
             });
 
+            // Akun yang dinonaktifkan admin tidak boleh memakai token lama.
+            // toggleActive() sudah menghapus cache user, jadi cek ini langsung berlaku.
+            if ($user && !$user->isverified) {
+                \Cache::forget('jwt_user_id_' . $userId);
+                return response()->json([
+                    'status'  => 403,
+                    'message' => 'Akun kamu dinonaktifkan. Hubungi administrator.',
+                    'data'    => []
+                ], 403);
+            }
+
             auth()->setUser($user);
         } catch (Exception $e) {
             \Cache::forget('jwt_user_' . md5($request->bearerToken() ?? ''));

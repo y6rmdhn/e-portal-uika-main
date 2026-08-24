@@ -6,99 +6,94 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class ActivityLogResource extends JsonResource
 {
+    /**
+     * Satu tabel untuk semua metadata tipe aktivitas.
+     *
+     * Sebelumnya label, warna, dan kategori disimpan di tiga array terpisah
+     * sehingga gampang tidak sinkron saat tipe baru ditambahkan. Sekarang
+     * satu baris per tipe: [label, warna, kategori, aksi].
+     *
+     * Kolom "aksi" dipakai frontend untuk menandai operasi CRUD.
+     */
+    private const TYPE_META = [
+        // ── Autentikasi ─────────────────────────────────────────────────────
+        'login'                => ['Login',                'emerald', 'auth',    'auth'],
+        'logout'               => ['Logout',               'gray',    'auth',    'auth'],
+
+        // ── Profil ──────────────────────────────────────────────────────────
+        'update_profile'       => ['Update Profil',        'blue',    'profile', 'update'],
+        'change_password'      => ['Ganti Password',       'amber',   'profile', 'update'],
+        'reset_password'       => ['Reset Password',       'rose',    'profile', 'update'],
+
+        // ── Akses aplikasi ──────────────────────────────────────────────────
+        'app_access'           => ['Akses Aplikasi',       'purple',  'system',  'access'],
+
+        // ── User CRUD ───────────────────────────────────────────────────────
+        'user_create'          => ['Buat User',            'teal',    'data',    'create'],
+        'user_update'          => ['Update User',          'sky',     'data',    'update'],
+        'user_delete'          => ['Hapus User',           'rose',    'data',    'delete'],
+        'user_toggle_active'   => ['Ubah Status Akun',     'amber',   'data',    'update'],
+
+        // ── Unit CRUD ───────────────────────────────────────────────────────
+        'unit_create'          => ['Buat Unit',            'teal',    'data',    'create'],
+        'unit_update'          => ['Update Unit',          'sky',     'data',    'update'],
+        'unit_delete'          => ['Hapus Unit',           'rose',    'data',    'delete'],
+        'unit_assign'          => ['Tugaskan Unit',        'emerald', 'data',    'update'],
+        'unit_unassign'        => ['Cabut Unit',           'rose',    'data',    'update'],
+
+        // ── Role CRUD ───────────────────────────────────────────────────────
+        'role_create'          => ['Buat Role',            'teal',    'data',    'create'],
+        'role_update'          => ['Update Role',          'sky',     'data',    'update'],
+        'role_delete'          => ['Hapus Role',           'rose',    'data',    'delete'],
+        'role_assign'          => ['Tugaskan Role',        'emerald', 'data',    'update'],
+        'role_unassign'        => ['Cabut Role',           'rose',    'data',    'update'],
+
+        // ── Permission CRUD ─────────────────────────────────────────────────
+        'permission_create'    => ['Buat Permission',      'teal',    'data',    'create'],
+        'permission_update'    => ['Update Permission',    'sky',     'data',    'update'],
+        'permission_delete'    => ['Hapus Permission',     'rose',    'data',    'delete'],
+        'permission_assign'    => ['Tugaskan Hak Akses',   'emerald', 'data',    'update'],
+        'permission_unassign'  => ['Cabut Hak Akses',      'rose',    'data',    'update'],
+        'permission_sync'      => ['Sinkron Hak Akses',    'purple',  'data',    'update'],
+
+        // ── Modul aplikasi ──────────────────────────────────────────────────
+        'app_module_create'    => ['Buat Modul',           'teal',    'data',    'create'],
+        'app_module_update'    => ['Update Modul',         'sky',     'data',    'update'],
+        'app_module_delete'    => ['Hapus Modul',          'rose',    'data',    'delete'],
+        'sso_secret_reset'     => ['Reset SSO Secret',     'amber',   'system',  'update'],
+    ];
+
+    /**
+     * Daftar tipe untuk mengisi dropdown filter di frontend, sudah
+     * dikelompokkan per kategori. Dipakai ActivityLogController.
+     */
+    public static function typeOptions(): array
+    {
+        $out = [];
+        foreach (self::TYPE_META as $type => [$label, $color, $category, $action]) {
+            $out[] = [
+                'value'    => $type,
+                'label'    => $label,
+                'category' => $category,
+                'action'   => $action,
+                'color'    => $color,
+            ];
+        }
+        return $out;
+    }
+
     public function toArray($request): array
     {
-        $typeLabels = [
-            // Auth
-            'login'           => 'Login',
-            'logout'          => 'Logout',
-            // Profile
-            'update_profile'  => 'Update Profile',
-            'change_password' => 'Ganti Password',
-            'reset_password'  => 'Reset Password',
-            // App
-            'app_access'      => 'Akses Aplikasi',
-            // Unit CRUD
-            'unit_create'     => 'Buat Unit',
-            'unit_update'     => 'Update Unit',
-            'unit_delete'     => 'Hapus Unit',
-            // Unit assignments
-            'unit_assign'     => 'Tugaskan Unit',
-            'unit_unassign'   => 'Cabut Unit',
-            // Permission assignments
-            'permission_assign'   => 'Tugaskan Hak Akses',
-            'permission_unassign' => 'Cabut Hak Akses',
-            'permission_sync'     => 'Sinkron Hak Akses',
-            // Role CRUD
-            'role_create'     => 'Buat Role',
-            'role_update'     => 'Update Role',
-            'role_delete'     => 'Hapus Role',
-            // Role assignments
-            'role_assign'     => 'Tugaskan Role',
-            'role_unassign'   => 'Cabut Role',
-        ];
-
-        $typeColors = [
-            // Auth
-            'login'           => 'emerald',
-            'logout'          => 'gray',
-            // Profile
-            'update_profile'  => 'blue',
-            'change_password' => 'amber',
-            'reset_password'  => 'rose',
-            // App
-            'app_access'      => 'purple',
-            // Unit CRUD
-            'unit_create'     => 'teal',
-            'unit_update'     => 'sky',
-            'unit_delete'     => 'rose',
-            // Unit assignments
-            'unit_assign'     => 'emerald',
-            'unit_unassign'   => 'rose',
-            // Permission assignments
-            'permission_assign'   => 'emerald',
-            'permission_unassign' => 'rose',
-            'permission_sync'     => 'purple',
-            // Role CRUD
-            'role_create'     => 'teal',
-            'role_update'     => 'sky',
-            'role_delete'     => 'rose',
-            // Role assignments
-            'role_assign'     => 'emerald',
-            'role_unassign'   => 'rose',
-        ];
-
-        $typeCategories = [
-            'login'           => 'auth',
-            'logout'          => 'auth',
-            'update_profile'  => 'profile',
-            'change_password' => 'profile',
-            'reset_password'  => 'profile',
-            'app_access'      => 'system',
-            'unit_create'     => 'data',
-            'unit_update'     => 'data',
-            'unit_delete'     => 'data',
-            'unit_assign'     => 'data',
-            'unit_unassign'   => 'data',
-            // Permission assignments
-            'permission_assign'   => 'data',
-            'permission_unassign' => 'data',
-            'permission_sync'     => 'data',
-            // Role CRUD
-            'role_create'     => 'data',
-            'role_update'     => 'data',
-            'role_delete'     => 'data',
-            // Role assignments
-            'role_assign'     => 'data',
-            'role_unassign'   => 'data',
-        ];
+        [$label, $color, $category, $action] = self::TYPE_META[$this->type]
+            ?? [$this->type, 'gray', 'other', 'other'];
 
         return [
             'id'               => $this->id,
             'type'             => $this->type,
-            'type_label'       => $typeLabels[$this->type] ?? $this->type,
-            'type_color'       => $typeColors[$this->type] ?? 'gray',
-            'type_category'    => $typeCategories[$this->type] ?? 'other',
+            'type_label'       => $label,
+            'type_color'       => $color,
+            'type_category'    => $category,
+            'type_action'      => $action,
             'description'      => $this->description,
             'metadata'         => $this->metadata,
             'actor'            => $this->actor ? [
