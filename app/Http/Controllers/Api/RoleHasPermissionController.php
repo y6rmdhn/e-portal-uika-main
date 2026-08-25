@@ -183,7 +183,10 @@ class RoleHasPermissionController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'role_id'          => 'required|integer|exists:m_jabatan,id',
-            'permission_ids'   => 'required|array',
+            // 'present' bukan 'required': sync dengan array kosong berarti
+            // mencabut seluruh hak akses role, dan itu operasi yang sah.
+            // Dengan 'required', kasus itu ditolak 422 secara keliru.
+            'permission_ids'   => 'present|array',
             'permission_ids.*' => 'integer|exists:permissions,id',
         ]);
 
@@ -217,12 +220,22 @@ class RoleHasPermissionController extends Controller
             $role = Role::find($roleId);
             $roleName = $role ? $role->name : "ID {$roleId}";
             $permissionNames = Permission::whereIn('id', $permissionIds)->pluck('name')->toArray();
-            $permissionList = implode(', ', $permissionNames);
+
+            // Ringkas daftarnya — role bisa punya puluhan permission dan
+            // deskripsi sepanjang itu tidak terbaca di halaman Aktivitas Log.
+            $jumlah = count($permissionNames);
+            if ($jumlah === 0) {
+                $deskripsi = "Mencabut seluruh hak akses role: {$roleName}";
+            } else {
+                $contoh = implode(', ', array_slice($permissionNames, 0, 5));
+                $sisa   = $jumlah > 5 ? ' dan ' . ($jumlah - 5) . ' lainnya' : '';
+                $deskripsi = "Menetapkan {$jumlah} hak akses untuk role {$roleName}: {$contoh}{$sisa}";
+            }
 
             $actor = JWTAuth::user();
             $this->activityLog->log(
                 ActivityLogService::TYPE_PERMISSION_SYNC,
-                "Sinkronisasi hak akses ({$permissionList}) untuk role: {$roleName}",
+                $deskripsi,
                 $actor?->user_id,
                 $actor?->user_id,
                 ['role_id' => $roleId, 'role_name' => $roleName, 'permission_ids' => $permissionIds]
