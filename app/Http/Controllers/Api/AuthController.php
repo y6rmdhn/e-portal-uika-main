@@ -518,7 +518,7 @@ class AuthController extends Controller
                 'nama_lengkap' => $dataPribadi?->nama_lengkap ?? null,
                 'no_hp'        => $dataPribadi?->no_hp ?? null,
                 'image'        => $dataPribadi?->image ?? null,
-                'role'        => !empty($user->roles->toArray() ) ? $user->roles->toArray() : null,
+                'role'        => !empty($user->roles->toArray()) ? $user->roles->toArray() : null,
                 // 'role'         => !empty($jabatans) ? $jabatans : null,
                 'role_id'      => $user->roles()->first()?->id,
                 'nidn'         => $user->nidn,
@@ -731,6 +731,10 @@ class AuthController extends Controller
             $unitId   = $assignment?->unit_id ?? $user->unit_id;
             $unitName = $assignment?->unit?->nama_unit ?? $user->unit?->nama_unit;
             $unitCode = $assignment?->unit?->code ?? $user->unit?->code;
+
+            // Token redirect dibuat berumur pendek karena hanya digunakan
+            // sekali untuk proses perpindahan ke aplikasi tujuan
+            FacadesJWTAuth::factory()->setTTL(2);
 
             // Generate a scoped token for the sub-app containing the contextual permissions
             $scopedToken = FacadesJWTAuth::claims([
