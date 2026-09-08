@@ -14,6 +14,7 @@ use Tymon\JWTAuth\Exceptions\JWTException;
 use Tymon\JWTAuth\Exceptions\TokenExpiredException;
 use Tymon\JWTAuth\Exceptions\TokenInvalidException;
 use Tymon\JWTAuth\Facades\JWTAuth;
+use Illuminate\Support\Facades\Cache;
 
 class SsoController extends Controller
 {
@@ -154,6 +155,23 @@ class SsoController extends Controller
                 'user'    => null,
                 'access'  => null,
             ], 403);
+        }
+
+        // Token SSO bersifat sekali pakai untuk mencegah replay attack
+        $jti = $payload->get('jti');
+        if ($isScoped && $jti) {
+            if (Cache::has("sso_used:{$jti}")) {
+                return response()->json([
+                    'status'  => 401,
+                    'valid'   => false,
+                    'message' => 'Token has already been used.',
+                    'user'    => null,
+                    'access'  => null,
+                ], 401);
+            }
+
+            // Tandai token telah digunakan selama sisa masa berlakunya
+            Cache::put("sso_used:{$jti}", true, now()->addMinutes(3));
         }
 
         $expireAt = $payload->get('exp')
