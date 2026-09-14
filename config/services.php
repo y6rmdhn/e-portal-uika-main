@@ -41,10 +41,4 @@ return [
     'siakad' => [
         'url' => env('SIAKAD_API_URL', 'http://localhost:3000'),
     ],
-    'tias' => [
-        // HARUS sama persis dengan JWT_SECRET di .env tias-backend (Node),
-        // supaya token yang di-mint authTias() bisa diverifikasi oleh
-        // middleware `protected` di sana. Lihat AuthController@authTias.
-        'jwt_secret' => env('TIAS_JWT_SECRET'),
-    ],
 ];
