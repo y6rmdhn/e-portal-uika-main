@@ -418,6 +418,163 @@ class AuthController extends Controller
         ])->withCookie($cookie);
     }
 
+    /**
+     * Login khusus TIAS Mobile. Kredensial divalidasi sama persis dengan auth()
+     * (satu sumber akun: tb_users), tapi token yang dikeluarkan BUKAN token
+     * Tymon milik E-Portal — melainkan JWT HS256 yang ditandatangani dengan
+     * secret yang sama dengan tias-backend (Node), supaya bisa langsung dipakai
+     * ke endpoint akademik api-tias tanpa SSO/login terpisah lagi.
+     */
+    public function authTias(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'email'    => 'required|email',
+            'password' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'isSuccess'       => false,
+                'statusCode'      => 400,
+                'responseMessage' => 'Email dan password harus diisi dengan benar.',
+                'data'            => null,
+            ], 400);
+        }
+
+        if ($this->loginLogService->isIpBlocked($request->ip())) {
+            $remaining = $this->loginLogService->getLockoutRemainingSeconds($request->ip(), 'ip');
+            return response()->json([
+                'isSuccess'       => false,
+                'statusCode'      => 429,
+                'responseMessage' => "Terlalu banyak percobaan login. Coba lagi dalam {$remaining} detik.",
+                'data'            => null,
+            ], 429);
+        }
+
+        if ($this->loginLogService->isEmailBlocked($request->email)) {
+            $remaining = $this->loginLogService->getLockoutRemainingSeconds($request->email, 'email');
+            return response()->json([
+                'isSuccess'       => false,
+                'statusCode'      => 429,
+                'responseMessage' => "Akun ini sementara dikunci. Coba lagi dalam {$remaining} detik.",
+                'data'            => null,
+            ], 429);
+        }
+
+        $uclUser = DB::connection('ucl')
+            ->table('tb_users')
+            ->where('email', $request->email)
+            ->whereNull('deleted_at')
+            ->first();
+
+        if (!$uclUser || !Hash::check($request->password, $uclUser->password)) {
+            $this->loginLogService->logFailure($request, 'invalid_credentials');
+            return response()->json([
+                'isSuccess'       => false,
+                'statusCode'      => 401,
+                'responseMessage' => 'Email atau password salah.',
+                'data'            => null,
+            ], 401);
+        }
+
+        if (!$uclUser->isverified) {
+            $this->loginLogService->logFailure($request, 'email_not_verified');
+            return response()->json([
+                'isSuccess'       => false,
+                'statusCode'      => 403,
+                'responseMessage' => 'Akun belum diverifikasi.',
+                'data'            => null,
+            ], 403);
+        }
+
+        $user = User::where('email', $uclUser->email)->first();
+        if (!$user) {
+            return response()->json([
+                'isSuccess'       => false,
+                'statusCode'      => 500,
+                'responseMessage' => 'User account configuration error.',
+                'data'            => null,
+            ], 500);
+        }
+
+        $tiasSecret = config('services.tias.jwt_secret');
+        if (!$tiasSecret) {
+            \Log::error('TIAS_JWT_SECRET belum diset di .env — authTias tidak bisa mint token untuk mobile.');
+            return response()->json([
+                'isSuccess'       => false,
+                'statusCode'      => 500,
+                'responseMessage' => 'Login mobile TIAS belum dikonfigurasi di server.',
+                'data'            => null,
+            ], 500);
+        }
+
+        // Payload sengaja disamakan dengan generateToken() di tias-backend
+        // (utils/index.js): { id, eportal_user_id? }. "id" HARUS sama dengan
+        // tb_users.user_id karena itu yang dipakai middleware `protected` Node
+        // untuk lookup user.
+        $token = $this->signTiasCompatibleToken([
+            'id'              => $user->user_id,
+            'eportal_user_id' => $user->user_id,
+        ], $tiasSecret);
+
+        DB::connection('pgsql')
+            ->table('tb_users')
+            ->where('user_id', $user->user_id)
+            ->update(['last_login_at' => now()]);
+
+        $this->loginLogService->logSuccess($user->user_id, $request);
+
+        $this->activityLog->log(
+            ActivityLogService::TYPE_LOGIN,
+            'Login ke TIAS Mobile via E-Portal',
+            userId: $user->user_id,
+            actorId: $user->user_id,
+            metadata: ['ip' => $request->ip(), 'device' => $request->userAgent()],
+        );
+
+        $roleName = $user->getRoleNames()->first() ?? $user->role;
+
+        // Bentuk response sengaja disamakan dengan helper response() di
+        // tias-backend (isSuccess/statusCode/responseMessage/data) supaya
+        // parsing di mobile (login.tsx) tidak perlu berubah sama sekali.
+        return response()->json([
+            'isSuccess'       => true,
+            'statusCode'      => 200,
+            'responseMessage' => 'Login Success.',
+            'data'            => [
+                'user_id' => $user->user_id,
+                'npm'     => $user->npm,
+                'nidn'    => $user->nidn,
+                'email'   => $user->email,
+                'role'    => $roleName,
+                'token'   => $token,
+            ],
+        ], 200);
+    }
+
+    /**
+     * Bikin JWT HS256 manual (tanpa lewat Tymon) supaya secret & bentuk payload-nya
+     * bisa disamakan persis dengan yang diverifikasi tias-backend (Node/jsonwebtoken)
+     * — yang secret-nya beda dari JWT_SECRET milik E-Portal sendiri.
+     */
+    private function signTiasCompatibleToken(array $claims, string $secret): string
+    {
+        $header = ['alg' => 'HS256', 'typ' => 'JWT'];
+        $now = time();
+        $payload = array_merge($claims, [
+            'iat' => $now,
+            'exp' => $now + 86400, // samakan dengan expiresIn: '1d' di generateToken() tias-backend
+        ]);
+
+        $encode = fn (array $data) => rtrim(strtr(base64_encode(json_encode($data)), '+/', '-_'), '=');
+
+        $segments = [$encode($header), $encode($payload)];
+        $signature = hash_hmac('sha256', implode('.', $segments), $secret, true);
+        $segments[] = rtrim(strtr(base64_encode($signature), '+/', '-_'), '=');
+
+        return implode('.', $segments);
+    }
+
     public function logout(Request $request)
     {
         try {
