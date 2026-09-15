@@ -296,6 +296,7 @@ class AuthController extends Controller
             ], 400);
         }
 
+    if (env('RATE_LIMITING_ENABLED', true)) {
         if ($this->loginLogService->isIpBlocked($request->ip())) {
             $remaining = $this->loginLogService->getLockoutRemainingSeconds($request->ip(), 'ip');
             return response()->json([
@@ -313,6 +314,7 @@ class AuthController extends Controller
                 'data'    => []
             ], 429);
         }
+    }
 
         // ── Cek credential ke DB UCL ──────────────────────────────────────────
         $uclUser = DB::connection('ucl')
