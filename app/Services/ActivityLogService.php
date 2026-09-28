@@ -57,6 +57,12 @@ class ActivityLogService
     const TYPE_USER_DELETE       = 'user_delete';
     const TYPE_USER_TOGGLE       = 'user_toggle_active';
 
+    // About Us
+    const TYPE_ABOUT_US_UPDATE               = 'about_us_update';
+    const TYPE_ABOUT_US_CONTRIBUTOR_CREATE   = 'about_us_contributor_create';
+    const TYPE_ABOUT_US_CONTRIBUTOR_UPDATE   = 'about_us_contributor_update';
+    const TYPE_ABOUT_US_CONTRIBUTOR_DELETE   = 'about_us_contributor_delete';
+
     public function log(
         string $type,
         string $description,
