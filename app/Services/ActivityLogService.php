@@ -63,6 +63,11 @@ class ActivityLogService
     const TYPE_ABOUT_US_CONTRIBUTOR_UPDATE   = 'about_us_contributor_update';
     const TYPE_ABOUT_US_CONTRIBUTOR_DELETE   = 'about_us_contributor_delete';
 
+    // Login Slides (Info Terkini di halaman login)
+    const TYPE_LOGIN_SLIDE_CREATE = 'login_slide_create';
+    const TYPE_LOGIN_SLIDE_UPDATE = 'login_slide_update';
+    const TYPE_LOGIN_SLIDE_DELETE = 'login_slide_delete';
+
     public function log(
         string $type,
         string $description,

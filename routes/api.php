@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\UserJabatanUnitController;
 use App\Http\Controllers\Api\SsoIntegrationController;
 use App\Http\Controllers\Api\ActivityLogController;
 use App\Http\Controllers\Api\AboutUsController;
+use App\Http\Controllers\Api\LoginSlideController;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -65,6 +66,7 @@ Route::post('/register', 'Api\AuthController@register');
 Route::get('/public/units', [UnitController::class, 'index'])->name('public.units');
 Route::get('/public/jabatans', [JabatanController::class, 'index'])->name('public.jabatans');
 Route::get('/about-us', [AboutUsController::class, 'publicShow'])->name('public.about-us');
+Route::get('/login-slides', [LoginSlideController::class, 'publicIndex'])->name('public.login-slides');
 Route::get('/check-id', 'Api\AuthController@checkId');
 Route::post('/password/email', 'Api\AuthController@sendResetLinkEmail');
 Route::post('/password/reset', 'Api\AuthController@resetPassword');
@@ -220,6 +222,14 @@ Route::group(['middleware' => ['jwt.verify']], function () {
                 Route::post('/{id}', [AboutUsController::class, 'updateContributor'])->name('update');
                 Route::delete('/{id}', [AboutUsController::class, 'destroyContributor'])->name('destroy');
             });
+        });
+
+        // ── Login Slides (Info Terkini di halaman login) ────────────────────────
+        Route::prefix('login-slides')->name('login-slides.')->group(function () {
+            Route::get('/', [LoginSlideController::class, 'index'])->name('index');
+            Route::post('/', [LoginSlideController::class, 'store'])->name('store');
+            Route::post('/{id}', [LoginSlideController::class, 'update'])->name('update');
+            Route::delete('/{id}', [LoginSlideController::class, 'destroy'])->name('destroy');
         });
 
         Route::prefix('sso-keys')->name('sso-keys.')->group(function () {
