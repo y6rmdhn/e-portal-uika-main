@@ -67,9 +67,10 @@ class AboutUsController extends Controller
     public function updateSettings(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'title'        => 'nullable|string|max:150',
-            'description'  => 'nullable|string',
-            'banner_photo' => 'nullable|image|max:2048',
+            'title'               => 'nullable|string|max:150',
+            'description'         => 'nullable|string',
+            'banner_photo'        => 'nullable|image|max:2048',
+            'remove_banner_photo' => 'nullable|boolean',
         ]);
 
         if ($validator->fails()) {
@@ -94,6 +95,8 @@ class AboutUsController extends Controller
             if (!file_exists($path)) mkdir($path, 0755, true);
             $file->move($path, $filename);
             $updateData['banner_photo'] = $this->publicAssetUrl('storage/about-us/' . $filename);
+        } elseif ($request->boolean('remove_banner_photo')) {
+            $updateData['banner_photo'] = null;
         }
 
         $settings->update($updateData);
