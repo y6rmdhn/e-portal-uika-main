@@ -30,6 +30,19 @@ use Spatie\Permission\Middlewares\RoleMiddleware;
 |
 */  
 
+/**
+ * Nginx cuma proxy path di bawah `/eportal-api/` ke container backend ini
+ * (lihat eportal-locations.conf), path lain jatuh ke fallback SPA frontend.
+ * Route ini sengaja ditaruh di web.php (bukan api.php) supaya TIDAK kena
+ * auto-prefix "api/" dari bootstrap, jadi bisa diakses persis di
+ * "/eportal-api/storage/..." — sesuai yang digenerate AboutUsController.
+ */
+Route::get('/storage/{path}', function (string $path) {
+    $fullPath = public_path('storage/' . $path);
+    abort_unless(is_file($fullPath), 404);
+    return response()->file($fullPath);
+})->where('path', '.*');
+
 Route::group(['middleware' => 'auth'], function () {
 	Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 	Route::get('/dashboard/getItems', [DashboardController::class, 'getItems'])->name('getItems');

@@ -93,7 +93,7 @@ class AboutUsController extends Controller
             $path = public_path('storage/about-us');
             if (!file_exists($path)) mkdir($path, 0755, true);
             $file->move($path, $filename);
-            $updateData['banner_photo'] = url('storage/about-us/' . $filename);
+            $updateData['banner_photo'] = $this->publicAssetUrl('storage/about-us/' . $filename);
         }
 
         $settings->update($updateData);
@@ -253,7 +253,19 @@ class AboutUsController extends Controller
         $path = public_path('storage/about-us/contributors');
         if (!file_exists($path)) mkdir($path, 0755, true);
         $file->move($path, $filename);
-        return url('storage/about-us/contributors/' . $filename);
+        return $this->publicAssetUrl('storage/about-us/contributors/' . $filename);
+    }
+
+    /**
+     * Nginx cuma proxy path di bawah `/eportal-api/` ke backend ini — path lain
+     * (termasuk `/storage/...` bawaan Laravel) jatuh ke fallback SPA frontend
+     * dan balik HTML, bukan file asli. Makanya URL asset di sini sengaja
+     * diarahkan lewat prefix itu, ke route baru di routes/web.php yang
+     * benar-benar men-stream filenya.
+     */
+    private function publicAssetUrl(string $path): string
+    {
+        return rtrim(config('app.url'), '/') . '/eportal-api/' . ltrim($path, '/');
     }
 
     /**
