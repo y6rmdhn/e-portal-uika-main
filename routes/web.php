@@ -43,6 +43,12 @@ Route::get('/storage/{path}', function (string $path) {
     return response()->file($fullPath);
 })->where('path', '.*');
 
+Route::get('/eportal-api/storage/{path}', function (string $path) {
+    $fullPath = public_path('storage/' . $path);
+    abort_unless(is_file($fullPath), 404);
+    return response()->file($fullPath);
+})->where('path', '.*');
+
 Route::group(['middleware' => 'auth'], function () {
 	Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 	Route::get('/dashboard/getItems', [DashboardController::class, 'getItems'])->name('getItems');

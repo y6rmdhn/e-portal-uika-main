@@ -6,10 +6,12 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class AppModule extends Authenticatable
 {
     use HasFactory, SoftDeletes;
+
 
     /**
      * The attributes that are mass assignable.
@@ -22,7 +24,18 @@ class AppModule extends Authenticatable
     protected $fillable = [
         'name',
         'url',
+        'icon',
     ];
+
+    protected $appends = ['icon_url'];
+
+    /**
+     * Return full public URL for the icon, or null if not set.
+     */
+    public function getIconUrlAttribute(): ?string
+    {
+        return $this->icon ? Storage::disk('public')->url($this->icon) : null;
+    }
 
     public function permission()
     {
@@ -44,5 +57,4 @@ class AppModule extends Authenticatable
     {
         return DB::getSchemaBuilder()->getColumnListing('app_module');
     }
-
 }

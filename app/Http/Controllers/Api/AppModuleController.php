@@ -78,6 +78,7 @@ class AppModuleController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:100|unique:app_module,name',
             'url'  => 'required|string|max:255',
+            'icon' => 'nullable|image|mimes:png,jpg,jpeg,svg,webp|max:2048',
         ]);
 
         if ($validator->fails()) {
@@ -88,9 +89,15 @@ class AppModuleController extends Controller
             ], 422);
         }
 
+        $iconPath = null;
+        if ($request->hasFile('icon')) {
+            $iconPath = $request->file('icon')->store('app_module_icons', 'public');
+        }
+
         $appModule = AppModule::create([
             'name' => $request->name,
             'url'  => $request->url,
+            'icon' => $iconPath,
         ]);
 
         // Automatically generate SSO Client credentials linked to this AppModule
@@ -105,7 +112,6 @@ class AppModuleController extends Controller
             'is_active'          => true,
         ]);
 
-        // Load the relationship and append the plaintext secret for copy-on-create
         $appModuleData = $appModule->load('ssoClient')->toArray();
         $appModuleData['sso_client']['plain_secret'] = $credentials['plain_secret'];
 
@@ -137,6 +143,7 @@ class AppModuleController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|required|string|max:100|unique:app_module,name,' . $id,
             'url'  => 'sometimes|required|string|max:255',
+            'icon' => 'nullable|image|mimes:png,jpg,jpeg,svg,webp|max:2048',
         ]);
 
         if ($validator->fails()) {
@@ -147,9 +154,16 @@ class AppModuleController extends Controller
             ], 422);
         }
 
-        $appModule->update($request->only('name', 'url'));
+        $updateData = $request->only('name', 'url');
+        if ($request->hasFile('icon')) {
+            if ($appModule->icon) {
+                \Storage::disk('public')->delete($appModule->icon);
+            }
+            $updateData['icon'] = $request->file('icon')->store('app_module_icons', 'public');
+        }
 
-        // Keep SsoClient name & callback URL in sync if linked
+        $appModule->update($updateData);
+
         if ($appModule->ssoClient) {
             $appModule->ssoClient->update([
                 'name'         => $appModule->name . ' Client',
