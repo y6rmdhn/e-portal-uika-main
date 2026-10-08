@@ -250,3 +250,4 @@ Route::group(['middleware' => ['jwt.verify']], function () {
         Route::get('/{id}/activity-logs', [UserController::class, 'activityLogs'])->name('activity-logs');
     });
 });
+Route::get('/sso/users-sync', [\App\Http\Controllers\Api\SsoSyncController::class, 'index']);

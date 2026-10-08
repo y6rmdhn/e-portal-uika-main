@@ -797,3 +797,16 @@ Stack trace:
 [2026-10-06 09:34:33] local.ERROR: JWT Error: Wrong number of segments | Class: Tymon\JWTAuth\Exceptions\TokenInvalidException  
 [2026-10-06 10:57:42] local.ERROR: JWT Error: Token has expired | Class: Tymon\JWTAuth\Exceptions\TokenExpiredException  
 [2026-10-06 10:57:46] local.ERROR: JWT Error: Token has expired | Class: Tymon\JWTAuth\Exceptions\TokenExpiredException  
+[2026-10-06 12:12:31] local.ERROR: JWT Error: Token has expired | Class: Tymon\JWTAuth\Exceptions\TokenExpiredException  
+[2026-10-06 14:38:43] local.ERROR: JWT Error: Token has expired | Class: Tymon\JWTAuth\Exceptions\TokenExpiredException  
+[2026-10-06 14:38:46] local.ERROR: JWT Error: Token has expired | Class: Tymon\JWTAuth\Exceptions\TokenExpiredException  
+[2026-10-06 14:38:46] local.ERROR: JWT Error: Token has expired | Class: Tymon\JWTAuth\Exceptions\TokenExpiredException  
+[2026-10-07 01:22:52] local.ERROR: JWT Error: Token has expired | Class: Tymon\JWTAuth\Exceptions\TokenExpiredException  
+[2026-10-07 01:22:55] local.ERROR: JWT Error: Token has expired | Class: Tymon\JWTAuth\Exceptions\TokenExpiredException  
+[2026-10-07 04:07:15] local.ERROR: JWT Error: Token has expired | Class: Tymon\JWTAuth\Exceptions\TokenExpiredException  
+[2026-10-07 04:07:17] local.ERROR: JWT Error: Token has expired | Class: Tymon\JWTAuth\Exceptions\TokenExpiredException  
+[2026-10-07 04:07:21] local.ERROR: JWT Error: Token has expired | Class: Tymon\JWTAuth\Exceptions\TokenExpiredException  
+[2026-10-07 04:07:22] local.ERROR: JWT Error: Token has expired | Class: Tymon\JWTAuth\Exceptions\TokenExpiredException  
+[2026-10-07 04:20:31] local.ERROR: JWT Error: Token has expired | Class: Tymon\JWTAuth\Exceptions\TokenExpiredException  
+[2026-10-07 06:50:36] local.ERROR: JWT Error: Token has expired | Class: Tymon\JWTAuth\Exceptions\TokenExpiredException  
+[2026-10-07 06:50:38] local.ERROR: JWT Error: Token has expired | Class: Tymon\JWTAuth\Exceptions\TokenExpiredException  
