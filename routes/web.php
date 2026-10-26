@@ -33,27 +33,52 @@ use Spatie\Permission\Middlewares\RoleMiddleware;
 /**
  * Nginx cuma proxy path di bawah `/eportal-api/` ke container backend ini
  * (lihat eportal-locations.conf), path lain jatuh ke fallback SPA frontend.
- * Route ini sengaja ditaruh di web.php (bukan api.php) supaya TIDAK kena
- * auto-prefix "api/" dari bootstrap, jadi bisa diakses persis di
- * "/eportal-api/storage/..." — sesuai yang digenerate AboutUsController.
+ * 
+ * DILEPAS DARI MIDDLEWARE WEB (StartSession dll.) supaya:
+ * 1. Bebas dari "session locking" PHP — browser bisa mendownload banyak gambar secara paralel sekaligus.
+ * 2. Memiliki header Cache-Control & ETag — gambar disimpan di browser cache, loading berikutnya 0 ms.
+ * 3. Mendukung 304 Not Modified jika gambar di browser belum berubah.
  */
-Route::get('/storage/{path}', function (string $path) {
-    $fullPath = public_path('storage/' . $path);
-    if (!is_file($fullPath)) {
-        $fullPath = storage_path('app/public/' . $path);
-    }
-    abort_unless(is_file($fullPath), 404);
-    return response()->file($fullPath);
-})->where('path', '.*');
+Route::withoutMiddleware([
+    \App\Http\Middleware\EncryptCookies::class,
+    \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+    \Illuminate\Session\Middleware\StartSession::class,
+    \Illuminate\View\Middleware\ShareErrorsFromSession::class,
+    \App\Http\Middleware\VerifyCsrfToken::class,
+])->group(function () {
+    $serveStaticFile = function (string $path) {
+        $cleanPath = str_replace(['../', '..\\'], '', $path);
+        $fullPath = public_path('storage/' . $cleanPath);
+        if (!is_file($fullPath)) {
+            $fullPath = storage_path('app/public/' . $cleanPath);
+        }
+        abort_unless(is_file($fullPath), 404);
 
-Route::get('/eportal-api/storage/{path}', function (string $path) {
-    $fullPath = public_path('storage/' . $path);
-    if (!is_file($fullPath)) {
-        $fullPath = storage_path('app/public/' . $path);
-    }
-    abort_unless(is_file($fullPath), 404);
-    return response()->file($fullPath);
-})->where('path', '.*');
+        $lastModified = filemtime($fullPath);
+        $etag = md5_file($fullPath);
+
+        $cacheHeaders = [
+            'Cache-Control' => 'public, max-age=604800, stale-while-revalidate=2592000',
+            'ETag'          => '"' . $etag . '"',
+            'Last-Modified' => gmdate('D, d M Y H:i:s', $lastModified) . ' GMT',
+        ];
+
+        $ifModifiedSince = request()->header('If-Modified-Since');
+        $ifNoneMatch = request()->header('If-None-Match');
+
+        if (
+            ($ifModifiedSince && strtotime($ifModifiedSince) >= $lastModified) ||
+            ($ifNoneMatch && trim($ifNoneMatch, '"') === $etag)
+        ) {
+            return response('', 304, $cacheHeaders);
+        }
+
+        return response()->file($fullPath, $cacheHeaders);
+    };
+
+    Route::get('/storage/{path}', $serveStaticFile)->where('path', '.*');
+    Route::get('/eportal-api/storage/{path}', $serveStaticFile)->where('path', '.*');
+});
 
 Route::group(['middleware' => 'auth'], function () {
 	Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
