@@ -91,7 +91,7 @@ class AppModuleController extends Controller
 
         $iconPath = null;
         if ($request->hasFile('icon')) {
-            $iconPath = $request->file('icon')->store('app_module_icons', 'public');
+            $iconPath = $this->storeIcon($request);
         }
 
         $appModule = AppModule::create([
@@ -156,10 +156,8 @@ class AppModuleController extends Controller
 
         $updateData = $request->only('name', 'url');
         if ($request->hasFile('icon')) {
-            if ($appModule->icon) {
-                \Storage::disk('public')->delete($appModule->icon);
-            }
-            $updateData['icon'] = $request->file('icon')->store('app_module_icons', 'public');
+            $this->deleteOldIcon($appModule->icon);
+            $updateData['icon'] = $this->storeIcon($request);
         }
 
         $appModule->update($updateData);
@@ -245,5 +243,48 @@ class AppModuleController extends Controller
         );
 
         return ResponseBuilder::success(200, 'SSO Client secret reset successfully. Please copy the new secret now.', $appModuleData);
+    }
+
+    private function storeIcon(Request $request): string
+    {
+        $file = $request->file('icon');
+        $filename = 'app_module_' . uniqid() . '.' . $file->getClientOriginalExtension();
+
+        // 1. Simpan ke public/storage/app_module_icons (seperti pada AboutUs & LoginSlide)
+        $publicDir = public_path('storage/app_module_icons');
+        if (!file_exists($publicDir)) {
+            mkdir($publicDir, 0755, true);
+        }
+        $file->move($publicDir, $filename);
+
+        // 2. Salin juga ke storage/app/public/app_module_icons jika disk public bukan symlink
+        $storageDir = storage_path('app/public/app_module_icons');
+        if (!file_exists($storageDir)) {
+            @mkdir($storageDir, 0755, true);
+        }
+        if (file_exists($publicDir . '/' . $filename) && !file_exists($storageDir . '/' . $filename)) {
+            @copy($publicDir . '/' . $filename, $storageDir . '/' . $filename);
+        }
+
+        return 'app_module_icons/' . $filename;
+    }
+
+    private function deleteOldIcon(?string $iconPath): void
+    {
+        if (!$iconPath) return;
+
+        $cleanPath = ltrim(preg_replace('#^storage/#', '', $iconPath), '/');
+
+        $publicFile = public_path('storage/' . $cleanPath);
+        if (is_file($publicFile)) {
+            @unlink($publicFile);
+        }
+
+        $storageFile = storage_path('app/public/' . $cleanPath);
+        if (is_file($storageFile)) {
+            @unlink($storageFile);
+        }
+
+        \Storage::disk('public')->delete($cleanPath);
     }
 }

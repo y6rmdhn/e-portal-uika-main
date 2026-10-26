@@ -31,10 +31,28 @@ class AppModule extends Authenticatable
 
     /**
      * Return full public URL for the icon, or null if not set.
+     * Nginx di server cuma mem-proxy path di bawah `/eportal-api/` ke container backend ini
+     * (lihat eportal-locations.conf). Path `/storage/...` tanpa prefix jatuh ke fallback SPA
+     * frontend. Disamakan dengan publicAssetUrl di AboutUsController.
      */
     public function getIconUrlAttribute(): ?string
     {
-        return $this->icon ? Storage::disk('public')->url($this->icon) : null;
+        if (!$this->icon) {
+            return null;
+        }
+
+        // Jika icon sudah berupa full URL (http:// atau https://)
+        if (str_starts_with($this->icon, 'http://') || str_starts_with($this->icon, 'https://')) {
+            if (!str_contains($this->icon, '/eportal-api/storage/') && str_contains($this->icon, '/storage/')) {
+                return str_replace('/storage/', '/eportal-api/storage/', $this->icon);
+            }
+            return $this->icon;
+        }
+
+        $cleanPath = ltrim(preg_replace('#^storage/#', '', $this->icon), '/');
+        $baseUrl = rtrim(config('app.url') ?: url('/'), '/');
+
+        return $baseUrl . '/eportal-api/storage/' . $cleanPath;
     }
 
     public function permission()

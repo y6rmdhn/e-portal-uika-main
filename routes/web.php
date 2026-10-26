@@ -39,12 +39,18 @@ use Spatie\Permission\Middlewares\RoleMiddleware;
  */
 Route::get('/storage/{path}', function (string $path) {
     $fullPath = public_path('storage/' . $path);
+    if (!is_file($fullPath)) {
+        $fullPath = storage_path('app/public/' . $path);
+    }
     abort_unless(is_file($fullPath), 404);
     return response()->file($fullPath);
 })->where('path', '.*');
 
 Route::get('/eportal-api/storage/{path}', function (string $path) {
     $fullPath = public_path('storage/' . $path);
+    if (!is_file($fullPath)) {
+        $fullPath = storage_path('app/public/' . $path);
+    }
     abort_unless(is_file($fullPath), 404);
     return response()->file($fullPath);
 })->where('path', '.*');
