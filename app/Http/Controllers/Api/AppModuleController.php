@@ -78,6 +78,7 @@ class AppModuleController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:100|unique:app_module,name',
             'url'  => 'required|string|max:255',
+            'icon' => 'nullable|image|mimes:png,jpg,jpeg,svg,webp|max:2048',
         ]);
 
         if ($validator->fails()) {
@@ -88,9 +89,15 @@ class AppModuleController extends Controller
             ], 422);
         }
 
+        $iconPath = null;
+        if ($request->hasFile('icon')) {
+            $iconPath = $this->storeIcon($request);
+        }
+
         $appModule = AppModule::create([
             'name' => $request->name,
             'url'  => $request->url,
+            'icon' => $iconPath,
         ]);
 
         // Automatically generate SSO Client credentials linked to this AppModule
@@ -105,7 +112,6 @@ class AppModuleController extends Controller
             'is_active'          => true,
         ]);
 
-        // Load the relationship and append the plaintext secret for copy-on-create
         $appModuleData = $appModule->load('ssoClient')->toArray();
         $appModuleData['sso_client']['plain_secret'] = $credentials['plain_secret'];
 
@@ -137,6 +143,7 @@ class AppModuleController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|required|string|max:100|unique:app_module,name,' . $id,
             'url'  => 'sometimes|required|string|max:255',
+            'icon' => 'nullable|image|mimes:png,jpg,jpeg,svg,webp|max:2048',
         ]);
 
         if ($validator->fails()) {
@@ -147,9 +154,14 @@ class AppModuleController extends Controller
             ], 422);
         }
 
-        $appModule->update($request->only('name', 'url'));
+        $updateData = $request->only('name', 'url');
+        if ($request->hasFile('icon')) {
+            $this->deleteOldIcon($appModule->icon);
+            $updateData['icon'] = $this->storeIcon($request);
+        }
 
-        // Keep SsoClient name & callback URL in sync if linked
+        $appModule->update($updateData);
+
         if ($appModule->ssoClient) {
             $appModule->ssoClient->update([
                 'name'         => $appModule->name . ' Client',
@@ -231,5 +243,48 @@ class AppModuleController extends Controller
         );
 
         return ResponseBuilder::success(200, 'SSO Client secret reset successfully. Please copy the new secret now.', $appModuleData);
+    }
+
+    private function storeIcon(Request $request): string
+    {
+        $file = $request->file('icon');
+        $filename = 'app_module_' . uniqid() . '.' . $file->getClientOriginalExtension();
+
+        // 1. Simpan ke public/storage/app_module_icons (seperti pada AboutUs & LoginSlide)
+        $publicDir = public_path('storage/app_module_icons');
+        if (!file_exists($publicDir)) {
+            mkdir($publicDir, 0755, true);
+        }
+        $file->move($publicDir, $filename);
+
+        // 2. Salin juga ke storage/app/public/app_module_icons jika disk public bukan symlink
+        $storageDir = storage_path('app/public/app_module_icons');
+        if (!file_exists($storageDir)) {
+            @mkdir($storageDir, 0755, true);
+        }
+        if (file_exists($publicDir . '/' . $filename) && !file_exists($storageDir . '/' . $filename)) {
+            @copy($publicDir . '/' . $filename, $storageDir . '/' . $filename);
+        }
+
+        return 'app_module_icons/' . $filename;
+    }
+
+    private function deleteOldIcon(?string $iconPath): void
+    {
+        if (!$iconPath) return;
+
+        $cleanPath = ltrim(preg_replace('#^storage/#', '', $iconPath), '/');
+
+        $publicFile = public_path('storage/' . $cleanPath);
+        if (is_file($publicFile)) {
+            @unlink($publicFile);
+        }
+
+        $storageFile = storage_path('app/public/' . $cleanPath);
+        if (is_file($storageFile)) {
+            @unlink($storageFile);
+        }
+
+        \Storage::disk('public')->delete($cleanPath);
     }
 }
