@@ -56,10 +56,14 @@ class AuthController extends Controller
 
     public function register(Request $request)
     {
+        if (strtolower((string) $request->input('role')) === 'admin') {
+            return response()->json(['status' => 422, 'message' => 'Pendaftaran sebagai Admin tidak diizinkan.'], 422);
+        }
+
         $validator = Validator::make($request->all(), [
             'email'      => 'required|email',
             'password'   => 'required|string|min:8|confirmed',
-            'role'       => 'required|in:Mahasiswa,Dosen,Admin,Pegawai,Dosen_Ext',
+            'role'       => 'required|in:Mahasiswa,Dosen,Pegawai,Dosen_Ext',
             'nidn'       => 'nullable|string',
             'npm'        => 'nullable|string',
             'nama'       => 'nullable|string|max:255',

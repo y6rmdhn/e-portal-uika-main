@@ -58,7 +58,7 @@ class LoginSlideController extends Controller
             'body'      => 'nullable|string',
             'order'     => 'nullable|integer',
             'is_active' => 'nullable|boolean',
-            'image'     => 'nullable|image|max:2048',
+            'image'     => 'nullable|file|mimes:jpeg,png,jpg,webp|max:2048',
         ];
     }
 
@@ -68,7 +68,7 @@ class LoginSlideController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), array_merge($this->rules(), [
-            'image' => 'required|image|max:2048',
+            'image' => 'required|file|mimes:jpeg,png,jpg,webp|max:2048',
         ]));
 
         if ($validator->fails()) {
@@ -173,7 +173,11 @@ class LoginSlideController extends Controller
     private function storeImage(Request $request): string
     {
         $file = $request->file('image');
-        $filename = 'login_slide_' . uniqid() . '.' . $file->getClientOriginalExtension();
+        $allowedExtensions = ['jpeg', 'png', 'jpg', 'webp'];
+        $rawExt = strtolower($file->guessExtension() ?: $file->extension());
+        $extension = in_array($rawExt, $allowedExtensions, true) ? $rawExt : 'png';
+
+        $filename = 'login_slide_' . uniqid() . '.' . $extension;
         $path = public_path('storage/login-slides');
         if (!file_exists($path)) mkdir($path, 0755, true);
         $file->move($path, $filename);

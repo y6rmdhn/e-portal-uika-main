@@ -105,7 +105,7 @@ class ProfileController extends Controller
             'alamat_wali'       => 'nullable|string|max:255',
             'pekerjaan'         => 'nullable|string|max:255',
             'alamat_pekerjaan'  => 'nullable|string|max:255',
-            'image'             => 'nullable|image|max:2048',
+            'image'             => 'nullable|file|mimes:jpeg,png,jpg,webp|max:2048',
         ]);
 
         if ($validator->fails()) {
@@ -150,7 +150,10 @@ class ProfileController extends Controller
         // Handle upload foto
         if ($request->hasFile('image')) {
             $file = $request->file('image');
-            $filename = 'profile_' . $user->user_id . '.' . $file->getClientOriginalExtension();
+            $allowedExtensions = ['jpeg', 'png', 'jpg', 'webp'];
+            $rawExt = strtolower($file->guessExtension() ?: $file->extension());
+            $extension = in_array($rawExt, $allowedExtensions, true) ? $rawExt : 'png';
+            $filename = 'profile_' . $user->user_id . '.' . $extension;
             $path = public_path('storage/profiles');
             if (!file_exists($path)) mkdir($path, 0755, true);
             $file->move($path, $filename);
